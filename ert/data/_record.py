@@ -314,6 +314,8 @@ class RecordTransmitter:
         if isinstance(record, NumericalRecord):
             async with aiofiles.open(str(location), mode="wt", encoding="utf-8") as ft:
                 await ft.write(get_serializer(mime).encode(record.data))
+        elif record.record_type == RecordType.TAR:
+            RecordTarTransformation().bytes_to_file(record.data, str(location))
         else:
             async with aiofiles.open(str(location), mode="wb") as fb:
                 await fb.write(record.data)  # type: ignore
@@ -390,6 +392,31 @@ class InMemoryRecordTransmitter(RecordTransmitter):
         return BlobRecord(data=self._record.data)
 
 
+class RecordTransformation:
+    async def file_to_bytes(location: pathlib.Path):
+        pass
+
+    async def bytes_to_file(data: bytes, location: pathlib.Path):
+        pass
+
+
+class RecordTarTransformation(RecordTransformation):
+    async def file_to_bytes(file_path: pathlib.Path) -> bytes:
+        tar_name = tempfile.NamedTemporaryFile().name
+        with tarfile.open(tar_name, "w") as tar:
+            for root, _, files in os.walk(file_path, topdown=False):
+                for file in files:
+                    tar.add(os.path.join(root, file))
+        with open(tar_name, "rb") as fb:
+            return fb.read()
+
+    async def bytes_to_file(data: bytes, location: pathlib.Path):
+        async with aiofiles.open(str(location) + ".tar", mode="wb") as ft:
+            await ft.write(data)
+        async with tarfile.open(str(location) + ".tar") as tar:
+            await tar.extractall(str(location))
+
+
 def load_collection_from_file(
     file_path: pathlib.Path, mime: str, ens_size: int = 1
 ) -> RecordCollection:
@@ -398,7 +425,16 @@ def load_collection_from_file(
             return RecordCollection(
                 records=[BlobRecord(data=fb.read())] * ens_size,
             )
-
+    elif mime == "application/x-tar":
+        return RecordCollection(
+            records=[
+                BlobRecord(
+                    data=RecordTarTransformation().file_to_bytes(file_path),
+                    record_type=RecordType.TAR,
+                )
+            ]
+            * ens_size,
+        )
     with open(file_path, "rt", encoding="utf-8") as f:
         raw_ensrecord = get_serializer(mime).decode_from_file(f)
     return RecordCollection(
