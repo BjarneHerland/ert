@@ -246,6 +246,8 @@ def _record(workspace: Path, args: Any) -> None:
                         + f"'{DEFAULT_RECORD_MIME_TYPE}'."
                     )
                     record_mime = DEFAULT_RECORD_MIME_TYPE
+            elif os.path.isdir(str(args.record_file)):
+                record_mime = "application/x-tar"
             else:
                 print(
                     f"Unable to guess what type '{args.record_file}' is, "

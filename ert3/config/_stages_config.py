@@ -1,6 +1,7 @@
 from importlib.abc import Loader
 import importlib.util
 import mimetypes
+import os
 from typing import Callable, Tuple, Type, cast, Union, Dict, Any
 
 from pydantic import BaseModel, FilePath, ValidationError, validator
@@ -44,11 +45,11 @@ def _ensure_mime(cls: Type[_StagesConfig], field: str, values: Dict[str, Any]) -
         if not ert.serialization.has_serializer(guess):
             return DEFAULT_RECORD_MIME_TYPE
         return guess
-    return (
-        DEFAULT_CMD_MIME_TYPE
-        if cls == TransportableCommand
-        else DEFAULT_RECORD_MIME_TYPE
-    )
+    elif os.path.isdir(str(values.get("location", ""))):
+        return "application/x-tar"
+    elif cls == TransportableCommand:
+        return DEFAULT_CMD_MIME_TYPE
+    return DEFAULT_RECORD_MIME_TYPE
 
 
 class Record(_StagesConfig):
