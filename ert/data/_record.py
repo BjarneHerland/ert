@@ -67,7 +67,6 @@ class RecordType(str, Enum):
     MAPPING_INT_FLOAT = "MAPPING_INT_FLOAT"
     MAPPING_STR_FLOAT = "MAPPING_STR_FLOAT"
     BYTES = "BYTES"
-    TAR = "TAR"
 
 
 class Record(_DataElement):
@@ -316,9 +315,10 @@ class RecordTransmitter:
         if isinstance(record, NumericalRecord):
             async with aiofiles.open(str(location), mode="wt", encoding="utf-8") as ft:
                 await ft.write(get_serializer(mime).encode(record.data))
-        elif record.record_type == RecordType.TAR:
+        elif RecordTarTransformation().is_tarobj(record.data):
             RecordTarTransformation().bytes_to_file(record.data, str(location))
         else:
+
             async with aiofiles.open(str(location), mode="wb") as fb:
                 await fb.write(record.data)  # type: ignore
 
@@ -395,25 +395,32 @@ class InMemoryRecordTransmitter(RecordTransmitter):
 
 
 class RecordTransformation:
-    async def file_to_bytes(self, location: pathlib.Path):
+    def file_to_bytes(self, location: pathlib.Path) -> bytes:
         pass
 
-    async def bytes_to_file(self, data: bytes, location: pathlib.Path):
+    def bytes_to_file(self, data: bytes, location: pathlib.Path):
         pass
 
 
 class RecordTarTransformation(RecordTransformation):
-    async def file_to_bytes(self, file_path: pathlib.Path) -> bytes:
+    def file_to_bytes(self, file_path: pathlib.Path) -> bytes:
         tar_obj = io.BytesIO()
-        with tarfile.open(tar_obj, "w:gz") as tar:
+        with tarfile.open(fileobj=tar_obj, mode="w") as tar:
             for root, _, files in os.walk(file_path, topdown=False):
                 for file in files:
                     tar.add(os.path.join(root, file))
         return tar_obj.getvalue()
 
-    async def bytes_to_file(self, data: bytes, location: pathlib.Path):
-        async with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
-            await tar.extractall(str(location))
+    def bytes_to_file(self, data: bytes, location: pathlib.Path):
+        with tarfile.open(fileobj=io.BytesIO(data), mode="r") as tar:
+            tar.extractall(str(location))
+
+    def is_tarobj(self, data: bytes) -> bool:
+        try:
+            tarfile.open(fileobj=io.BytesIO(data), mode="r")
+            return True
+        except tarfile.TarError:
+            return False
 
 
 def load_collection_from_file(
@@ -429,7 +436,6 @@ def load_collection_from_file(
             records=[
                 BlobRecord(
                     data=RecordTarTransformation().file_to_bytes(file_path),
-                    record_type=RecordType.TAR,
                 )
             ]
             * ens_size,
