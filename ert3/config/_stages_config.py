@@ -45,7 +45,7 @@ def _ensure_mime(cls: Type[_StagesConfig], field: str, values: Dict[str, Any]) -
         if not ert.serialization.has_serializer(guess):
             return DEFAULT_RECORD_MIME_TYPE
         return guess
-    elif os.path.isdir(str(values.get("location", ""))):
+    elif os.path.isdir(str(values.get("location", "").replace(".", "/"))):
         return "application/x-tar"
     elif cls == TransportableCommand:
         return DEFAULT_CMD_MIME_TYPE

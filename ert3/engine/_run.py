@@ -71,7 +71,7 @@ def _get_experiment_record_indices(
 
     elif source == "resources":
         file_path = workspace_root / "resources" / record_source[1]
-        blob_record = record_mime == "application/octet-stream"
+        blob_record = record_mime in ["application/octet-stream", "application/x-tar"]
         if blob_record:
             return []
         with open(file_path, "r", encoding="utf-8") as f:
