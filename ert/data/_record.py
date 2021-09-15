@@ -4,6 +4,7 @@ import uuid
 from abc import abstractmethod
 from enum import Enum, auto
 from pathlib import Path
+import tarfile, tempfile, os
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
 
 import aiofiles
