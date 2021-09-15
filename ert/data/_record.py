@@ -4,7 +4,7 @@ import uuid
 from abc import abstractmethod
 from enum import Enum, auto
 from pathlib import Path
-import tarfile, tempfile, os
+import tarfile, os, io
 from typing import Any, Dict, List, Mapping, MutableMapping, Optional, Tuple, Union
 
 import aiofiles
@@ -67,6 +67,7 @@ class RecordType(str, Enum):
     MAPPING_INT_FLOAT = "MAPPING_INT_FLOAT"
     MAPPING_STR_FLOAT = "MAPPING_STR_FLOAT"
     BYTES = "BYTES"
+    TAR = "TAR"
 
 
 class Record(_DataElement):
@@ -394,27 +395,24 @@ class InMemoryRecordTransmitter(RecordTransmitter):
 
 
 class RecordTransformation:
-    async def file_to_bytes(location: pathlib.Path):
+    async def file_to_bytes(self, location: pathlib.Path):
         pass
 
-    async def bytes_to_file(data: bytes, location: pathlib.Path):
+    async def bytes_to_file(self, data: bytes, location: pathlib.Path):
         pass
 
 
 class RecordTarTransformation(RecordTransformation):
-    async def file_to_bytes(file_path: pathlib.Path) -> bytes:
-        tar_name = tempfile.NamedTemporaryFile().name
-        with tarfile.open(tar_name, "w") as tar:
+    async def file_to_bytes(self, file_path: pathlib.Path) -> bytes:
+        tar_obj = io.BytesIO()
+        with tarfile.open(tar_obj, "w:gz") as tar:
             for root, _, files in os.walk(file_path, topdown=False):
                 for file in files:
                     tar.add(os.path.join(root, file))
-        with open(tar_name, "rb") as fb:
-            return fb.read()
+        return tar_obj.getvalue()
 
-    async def bytes_to_file(data: bytes, location: pathlib.Path):
-        async with aiofiles.open(str(location) + ".tar", mode="wb") as ft:
-            await ft.write(data)
-        async with tarfile.open(str(location) + ".tar") as tar:
+    async def bytes_to_file(self, data: bytes, location: pathlib.Path):
+        async with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as tar:
             await tar.extractall(str(location))
 
 
