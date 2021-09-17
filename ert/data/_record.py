@@ -361,7 +361,10 @@ class SharedDiskRecordTransmitter(RecordTransmitter):
     async def dump(self, location: Path, mime: str) -> None:
         if not self.is_transmitted():
             raise RuntimeError("cannot dump untransmitted record")
-        if (
+        if mime == "application/x-tar":
+            record = await self._load_blob_record()
+            RecordTarTransformation().bytes_to_file(record.data, str(location))
+        elif (
             self._record_type == RecordType.BYTES
             or mime == SharedDiskRecordTransmitter._INTERNAL_MIME_TYPE
         ):
