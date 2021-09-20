@@ -315,7 +315,7 @@ class RecordTransmitter:
         if isinstance(record, NumericalRecord):
             async with aiofiles.open(str(location), mode="wt", encoding="utf-8") as ft:
                 await ft.write(get_serializer(mime).encode(record.data))
-        elif RecordTarTransformation().is_tarobj(record.data):
+        elif mime == "application/x-tar":
             RecordTarTransformation().bytes_to_file(record.data, str(location))
         else:
 
@@ -409,21 +409,12 @@ class RecordTarTransformation(RecordTransformation):
     def file_to_bytes(self, file_path: pathlib.Path) -> bytes:
         tar_obj = io.BytesIO()
         with tarfile.open(fileobj=tar_obj, mode="w") as tar:
-            for root, _, files in os.walk(file_path, topdown=False):
-                for file in files:
-                    tar.add(os.path.join(root, file))
+            tar.add(file_path, arcname="")
         return tar_obj.getvalue()
 
     def bytes_to_file(self, data: bytes, location: pathlib.Path):
         with tarfile.open(fileobj=io.BytesIO(data), mode="r") as tar:
             tar.extractall(str(location))
-
-    def is_tarobj(self, data: bytes) -> bool:
-        try:
-            tarfile.open(fileobj=io.BytesIO(data), mode="r")
-            return True
-        except tarfile.TarError:
-            return False
 
 
 def load_collection_from_file(
