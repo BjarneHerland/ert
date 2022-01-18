@@ -15,6 +15,7 @@
    See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
    for more details.
 */
+#include <future>         // std::async, std::future
 #include <time.h>
 
 #include <ert/util/double_vector.h>
@@ -24,8 +25,11 @@
 #include <ert/enkf/enkf_fs.hpp>
 #include <ert/enkf/enkf_plot_tvector.hpp>
 #include <ert/enkf/enkf_plot_data.hpp>
+#include <ert/logging.hpp>
 
 #define ENKF_PLOT_DATA_TYPE_ID 3331063
+
+static auto plot_data_logger = ert::get_logger("enkf_plot_data");
 
 struct enkf_plot_data_struct {
     UTIL_TYPE_ID_DECLARATION;
@@ -116,28 +120,44 @@ void enkf_plot_data_load(enkf_plot_data_type *plot_data, enkf_fs_type *fs,
         mask = bool_vector_alloc_copy(input_mask);
     else
         mask = bool_vector_alloc(ens_size, false);
+
     state_map_select_matching(state_map, mask, STATE_HAS_DATA, true);
+
+    plot_data_logger->info("Loading data for {} realisations",
+    						bool_vector_count_equal(mask, true));
+    printf("Loading data for %d realisations\n",
+    						bool_vector_count_equal(mask, true));
 
     enkf_plot_data_resize(plot_data, ens_size);
     enkf_plot_data_reset(plot_data);
+
     {
         const int num_cpu = 4;
         thread_pool_type *tp = thread_pool_alloc(num_cpu, true);
+
+//		std::vector<std::future<void>> futures;
         for (int iens = 0; iens < ens_size; iens++) {
             if (bool_vector_iget(mask, iens)) {
                 enkf_plot_tvector_type *vector =
                     enkf_plot_data_iget(plot_data, iens);
-                arg_pack_type *work_arg = plot_data->work_arg[iens];
 
+                arg_pack_type *work_arg = plot_data->work_arg[iens];
                 arg_pack_append_ptr(work_arg, vector);
                 arg_pack_append_ptr(work_arg, fs);
                 arg_pack_append_const_ptr(work_arg, index_key);
-
                 thread_pool_add_job(tp, enkf_plot_tvector_load__, work_arg);
+
+//                enkf_plot_tvector_load(vector, fs, index_key);
+
+//                futures.push_back(std::async(std::launch::deferred,
+//                		enkf_plot_tvector_load, vector, fs, index_key));
             }
         }
         thread_pool_join(tp);
         thread_pool_free(tp);
+
+//        for (auto &f : futures) f.get();
     }
+
     bool_vector_free(mask);
 }

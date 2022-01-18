@@ -15,6 +15,14 @@ function(add_equinor_test name command)
   set_property(TEST ${name} PROPERTY LABELS EquinorData)
 endfunction()
 
+foreach(
+  test
+  load_summary)
+  add_executable(${test} profile_${test}.cpp)
+  target_link_libraries(${test} res)
+  add_test(NAME ${test} COMMAND ${test})
+endforeach()
+
 # -----------------------------------------------------------------
 # Public tests
 # -----------------------------------------------------------------
