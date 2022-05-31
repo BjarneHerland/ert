@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 
-import ert
+import ert.data
+import ert.storage
 import ert3
 
 from ._entity import TransmitterCoroutine
@@ -26,8 +27,11 @@ def analyze_sensitivity(
             sensitivity_parameters, model_output, experiment_config.harmonics
         )
         workspace.export_json(
-            experiment_name, analysis, output_file="fast_analysis.json"
+            experiment_name,
+            analysis,
+            output_file=f"{experiment_name}_fast_analysis.json",
         )
+
     else:
         raise ValueError(
             "Unable to determine analysis step "
@@ -75,8 +79,8 @@ def _load_sensitivity_parameters(
 
     sensitivity_parameters = {}
     for input_ in stochastic_inputs:
-        group_name = input_.source_location
-        sensitivity_parameters[input_.name] = all_distributions[group_name]
+        parameter_name = input_.source_location
+        sensitivity_parameters[input_.name] = all_distributions[parameter_name]
     return sensitivity_parameters
 
 

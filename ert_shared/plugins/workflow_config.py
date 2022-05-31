@@ -4,7 +4,7 @@ import tempfile
 import logging
 
 
-class WorkflowConfigs(object):
+class WorkflowConfigs:
     """
     Top level workflow config object, holds all workflow configs.
     """
@@ -30,16 +30,15 @@ class WorkflowConfigs(object):
         for workflow in self._workflows:
             if workflow.name in configs:
                 logging.info(
-                    "Duplicate workflow name: {}, skipping {}".format(
-                        workflow.name, workflow.function_dir
-                    )
+                    f"Duplicate workflow name: {workflow.name}, "
+                    f"skipping {workflow.function_dir}"
                 )
             else:
                 configs[workflow.name] = workflow.config_path
         return configs
 
 
-class WorkflowConfig(object):
+class WorkflowConfig:
     """
     Single workflow configuration object
 
@@ -113,7 +112,7 @@ class WorkflowConfig(object):
         file_path = os.path.join(output_dir, self.name.upper())
         with open(file_path, "w") as f_out:
             f_out.write("INTERNAL      True\n")
-            f_out.write("SCRIPT        {}".format(self.function_dir))
+            f_out.write(f"SCRIPT        {self.function_dir}")
         return file_path
 
     @staticmethod

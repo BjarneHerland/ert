@@ -59,18 +59,20 @@ variables of size nrobs_active:
 -------------------------------
 Matrices: S, D, E and various internal variables.
 */
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #include <cmath>
 #include <vector>
 
 #include <ert/util/util.h>
 #include <ert/util/vector.h>
-#include <ert/res_util/matrix.hpp>
 
-#include <ert/enkf/obs_data.hpp>
 #include <ert/enkf/enkf_util.hpp>
+#include <ert/enkf/obs_data.hpp>
+#include <ert/python.hpp>
+
+static auto logger = ert::get_logger("analysis.update");
 
 #define OBS_BLOCK_TYPE_ID 995833
 
@@ -83,9 +85,6 @@ struct obs_block_struct {
 
     active_type *active_mode;
     int active_size;
-    matrix_type *error_covar;
-    bool
-        error_covar_owner; /* If true the error_covar matrix is free'd when construction of the R matrix is complete. */
     double global_std_scaling;
 };
 
@@ -98,8 +97,6 @@ struct obs_data_struct {
 static UTIL_SAFE_CAST_FUNCTION(obs_block, OBS_BLOCK_TYPE_ID)
 
     obs_block_type *obs_block_alloc(const char *obs_key, int obs_size,
-                                    matrix_type *error_covar,
-                                    bool error_covar_owner,
                                     double global_std_scaling) {
     obs_block_type *obs_block =
         (obs_block_type *)util_malloc(sizeof *obs_block);
@@ -112,8 +109,6 @@ static UTIL_SAFE_CAST_FUNCTION(obs_block, OBS_BLOCK_TYPE_ID)
     obs_block->std = (double *)util_calloc(obs_size, sizeof *obs_block->std);
     obs_block->active_mode =
         (active_type *)util_calloc(obs_size, sizeof *obs_block->active_mode);
-    obs_block->error_covar = error_covar;
-    obs_block->error_covar_owner = error_covar_owner;
     obs_block->global_std_scaling = global_std_scaling;
     {
         for (int iobs = 0; iobs < obs_size; iobs++)
@@ -136,12 +131,11 @@ static void obs_block_free__(void *arg) {
     obs_block_free(obs_block);
 }
 
-void obs_block_deactivate(obs_block_type *obs_block, int iobs, bool verbose,
+void obs_block_deactivate(obs_block_type *obs_block, int iobs,
                           const char *msg) {
     if (obs_block->active_mode[iobs] == ACTIVE) {
-        if (verbose)
-            printf("Deactivating: %s(%d) : %s \n", obs_block->obs_key, iobs,
-                   msg);
+        logger->warning("Deactivating: {}({}) : {} \n", obs_block->obs_key,
+                        iobs, msg);
         obs_block->active_mode[iobs] = DEACTIVATED;
         obs_block->active_size--;
     }
@@ -212,11 +206,9 @@ obs_data_type *obs_data_alloc(double global_std_scaling) {
 }
 
 obs_block_type *obs_data_add_block(obs_data_type *obs_data, const char *obs_key,
-                                   int obs_size, matrix_type *error_covar,
-                                   bool error_covar_owner) {
+                                   int obs_size) {
     obs_block_type *new_block =
-        obs_block_alloc(obs_key, obs_size, error_covar, error_covar_owner,
-                        obs_data->global_std_scaling);
+        obs_block_alloc(obs_key, obs_size, obs_data->global_std_scaling);
     vector_append_owned_ref(obs_data->data, new_block, obs_block_free__);
     return new_block;
 }

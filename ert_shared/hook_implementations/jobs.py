@@ -13,12 +13,10 @@ def _resolve_ert_share_path():
 
 def _get_jobs_from_directories(directories):
     share_path = _resolve_ert_share_path()
-    directories = list(
-        [
-            Template(l).render(ERT_SHARE_PATH=share_path, ERT_UI_MODE="gui")
-            for l in directories
-        ]
-    )
+    directories = [
+        Template(directory).render(ERT_SHARE_PATH=share_path, ERT_UI_MODE="gui")
+        for directory in directories
+    ]
 
     all_files = []
     for directory in directories:
@@ -74,14 +72,12 @@ def job_documentation(job_name):
     if job_name not in ert_jobs:
         return None
 
-    doc_folder = "{}/forward-models/docs".format(_resolve_ert_share_path())
+    doc_folder = f"{_resolve_ert_share_path()}/forward-models/docs"
 
-    description_file = os.path.join(
-        doc_folder, "description", "{}.rst".format(job_name)
-    )
+    description_file = os.path.join(doc_folder, "description", f"{job_name}.rst")
     description = _get_file_content_if_exists(description_file)
 
-    examples_file = os.path.join(doc_folder, "examples", "{}.rst".format(job_name))
+    examples_file = os.path.join(doc_folder, "examples", f"{job_name}.rst")
     examples = _get_file_content_if_exists(examples_file)
 
     return {

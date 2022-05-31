@@ -31,15 +31,16 @@ class JobQueueNode(BaseCClass):
     )
     _free = ResPrototype("void job_queue_node_free(job_queue_node)")
     _submit = ResPrototype(
-        "job_submit_status_type_enum job_queue_node_submit_simple(job_queue_node, driver)"
+        "job_submit_status_type_enum job_queue_node_submit_simple(job_queue_node, driver)"  # noqa
     )
     _run_kill = ResPrototype("bool job_queue_node_kill_simple(job_queue_node, driver)")
 
     _get_status = ResPrototype(
         "job_status_type_enum job_queue_node_get_status(job_queue_node)"
     )
-    _update_status = ResPrototype(
-        "bool job_queue_node_update_status_simple(job_queue_node, driver)"
+
+    _refresh_status = ResPrototype(
+        "job_status_type_enum job_queue_node_refresh_status(job_queue_node, driver)"
     )
     _set_status = ResPrototype(
         "void job_queue_node_set_status(job_queue_node, job_status_type_enum)"
@@ -114,6 +115,9 @@ class JobQueueNode(BaseCClass):
     def submit_attempt(self):
         return self._get_submit_attempt()
 
+    def refresh_status(self, driver):
+        return self._refresh_status(driver)
+
     @property
     def status(self):
         return self._get_status()
@@ -126,24 +130,28 @@ class JobQueueNode(BaseCClass):
         return self._submit(driver)
 
     def run_done_callback(self):
-        callback_status = self.done_callback_function(self.callback_arguments)
-
-        if callback_status:
-            self._set_status(JobStatusType.JOB_QUEUE_SUCCESS)
-        else:
-            self._set_status(JobStatusType.JOB_QUEUE_EXIT)
+        try:
+            callback_status = self.done_callback_function(self.callback_arguments)
+            if callback_status:
+                self._set_status(JobStatusType.JOB_QUEUE_SUCCESS)
+            else:
+                self._set_status(JobStatusType.JOB_QUEUE_EXIT)
+        except ValueError:
+            callback_status = False
+            self._set_status(JobStatusType.JOB_QUEUE_FAILED)
 
         return callback_status
 
     def run_exit_callback(self):
         return self.exit_callback_function(self.callback_arguments)
 
-    def is_running(self):
-        return (
-            self.status == JobStatusType.JOB_QUEUE_PENDING
-            or self.status == JobStatusType.JOB_QUEUE_SUBMITTED
-            or self.status == JobStatusType.JOB_QUEUE_RUNNING
-            or self.status == JobStatusType.JOB_QUEUE_UNKNOWN
+    def is_running(self, given_status=None):
+        status = given_status or self.status
+        return status in (
+            JobStatusType.JOB_QUEUE_PENDING,
+            JobStatusType.JOB_QUEUE_SUBMITTED,
+            JobStatusType.JOB_QUEUE_RUNNING,
+            JobStatusType.JOB_QUEUE_UNKNOWN,
         )  # dont stop monitoring if LSF commands are unavailable
 
     @property
@@ -167,16 +175,15 @@ class JobQueueNode(BaseCClass):
         if submit_status is not JobSubmitStatusType.SUBMIT_OK:
             self._set_status(JobStatusType.JOB_QUEUE_DONE)
 
-        self.update_status(driver)
+        current_status = self.refresh_status(driver)
 
-        while self.is_running():
+        while self.is_running(current_status):
             if (
                 self._start_time is None
-                and self.status == JobStatusType.JOB_QUEUE_RUNNING
+                and current_status == JobStatusType.JOB_QUEUE_RUNNING
             ):
                 self._start_time = time.time()
             time.sleep(1)
-            self.update_status(driver)
             if self._should_be_killed():
                 self._kill(driver)
                 if self._max_runtime and self.runtime >= self._max_runtime:
@@ -195,30 +202,34 @@ class JobQueueNode(BaseCClass):
                     with self._mutex:
                         self._timed_out = True
 
+            current_status = self.refresh_status(driver)
+
         self._end_time = time.time()
 
         with self._mutex:
-            if self.status == JobStatusType.JOB_QUEUE_DONE:
+            if current_status == JobStatusType.JOB_QUEUE_DONE:
                 with pool_sema:
                     self.run_done_callback()
 
-            if self.status == JobStatusType.JOB_QUEUE_SUCCESS:
+            # refresh cached status after running the callback
+            current_status = self.refresh_status(driver)
+            if current_status == JobStatusType.JOB_QUEUE_SUCCESS:
                 pass
-            elif self.status == JobStatusType.JOB_QUEUE_EXIT:
+            elif current_status == JobStatusType.JOB_QUEUE_EXIT:
                 if self.submit_attempt < max_submit:
                     self._set_thread_status(ThreadStatus.READY)
                     return
                 else:
                     self._set_status(JobStatusType.JOB_QUEUE_FAILED)
                     self.run_exit_callback()
-            elif self.status == JobStatusType.JOB_QUEUE_IS_KILLED:
+            elif current_status == JobStatusType.JOB_QUEUE_IS_KILLED:
                 pass
+            elif current_status == JobStatusType.JOB_QUEUE_FAILED:
+                self.run_exit_callback()
             else:
                 self._set_thread_status(ThreadStatus.FAILED)
                 raise AssertionError(
-                    "Unexpected job status type after running job: {}".format(
-                        self.status
-                    )
+                    f"Unexpected job status type after running job: {current_status}"
                 )
 
             self._set_thread_status(ThreadStatus.DONE)
@@ -260,10 +271,6 @@ class JobQueueNode(BaseCClass):
     def wait_for(self):
         if self._thread is not None and self._thread.is_alive():
             self._thread.join()
-
-    def update_status(self, driver):
-        if self.status != JobStatusType.JOB_QUEUE_WAITING:
-            self._update_status(driver)
 
     def _set_thread_status(self, new_status):
         self._thread_status = new_status

@@ -76,7 +76,7 @@ class ErtTemplatesTest(ResTest):
             )
             self.assertEqual(template.get_target_file(), configured_template[1])
             expected_arg_string = ", ".join(
-                ["{}={}".format(key, val) for key, val in configured_template[2]]
+                [f"{key}={val}" for key, val in configured_template[2]]
             )
             self.assertEqual(expected_arg_string, template.get_args_as_string())
 
@@ -97,7 +97,9 @@ class ErtTemplatesTest(ResTest):
         self.assertNotEqual(templates, templates2)
 
     def remove_key(self, key):
-        return {i: self.config_data[i] for i in self.config_data if i != key}
+        return {
+            index: value for index, value in self.config_data.items() if index != key
+        }
 
     def change_template_arg(self, template_index, arg_index, new_key, new_val):
         conf_copy = copy.deepcopy(self.config_data)
@@ -114,11 +116,9 @@ class ErtTemplatesTest(ResTest):
             config.write("NUM_REALIZATIONS  1\n")
 
             for template, target, args in self.config_data[ConfigKeys.RUN_TEMPLATE]:
-                argstring = " ".join("{}:{}".format(key, val) for key, val in args)
+                argstring = " ".join(f"{key}:{val}" for key, val in args)
                 config.write(
-                    "{} {} {} {}\n".format(
-                        ConfigKeys.RUN_TEMPLATE, template, target, argstring
-                    )
+                    f"{ConfigKeys.RUN_TEMPLATE} {template} {target} {argstring}\n"
                 )
 
     def make_empty_file(self, filename):

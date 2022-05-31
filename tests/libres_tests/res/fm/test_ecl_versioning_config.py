@@ -54,7 +54,6 @@ class EclConfigTest(ResTest):
             with self.assertRaises(ValueError):
                 conf = Ecl100Config()
 
-            scalar_path = "scalar"
             scalar_exe = "bin/scalar_exe"
             mpi_exe = "bin/mpi_exe"
             mpi_run = "bin/mpi_run"
@@ -82,10 +81,8 @@ class EclConfigTest(ResTest):
                                 "I_MPI_ROOT": "$ENV1:B:$ENV2",
                                 "TEST_VAR": "$ENV1.B.$ENV2 $UNKNOWN_VAR",
                                 "P4_RSHCOMMAND": "",
-                                "LD_LIBRARY_PATH": "{}:$LD_LIBRARY_PATH".format(
-                                    intel_path
-                                ),
-                                "PATH": "{}/bin64:$PATH".format(intel_path),
+                                "LD_LIBRARY_PATH": f"{intel_path}:$LD_LIBRARY_PATH",
+                                "PATH": f"{intel_path}/bin64:$PATH",
                             },
                         },
                     },
@@ -117,11 +114,13 @@ class EclConfigTest(ResTest):
             with self.assertRaises(OSError):
                 sim = conf.sim("2016")
 
-            # Fails because the 2016 mpi version points to a non existing mpi executable
+            # Fails because the 2016 mpi version points to a non existing mpi
+            # executable
             with self.assertRaises(OSError):
                 sim = conf.mpi_sim("2016")
 
-            # Fails because the 2017 mpi version mpirun points to a non existing mpi executable
+            # Fails because the 2017 mpi version mpirun points to a non existing
+            # mpi executable
             with self.assertRaises(OSError):
                 sim = conf.mpi_sim("2017")
 

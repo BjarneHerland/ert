@@ -24,8 +24,8 @@
 
 #include <ert/res_util/path_fmt.hpp>
 
-#include <ert/job_queue/queue_driver.hpp>
 #include <ert/job_queue/job_node.hpp>
+#include <ert/job_queue/queue_driver.hpp>
 
 typedef struct job_queue_struct job_queue_type;
 extern "C" PY_USED void job_queue_submit_complete(job_queue_type *queue);
@@ -52,9 +52,6 @@ extern "C" PY_USED void job_queue_run_jobs_threaded(job_queue_type *queue,
                                                     int num_total_run,
                                                     bool verbose);
 void *job_queue_run_jobs__(void *);
-void job_queue_start_manager_thread(job_queue_type *job_queue,
-                                    pthread_t *queue_thread, int job_size,
-                                    bool verbose);
 
 extern "C" job_status_type job_queue_iget_job_status(job_queue_type *, int);
 

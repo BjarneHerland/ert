@@ -1,5 +1,3 @@
-from ecl.util.util import BoolVector
-
 from res.enkf import EnKFMain, NodeId, ResConfig
 from res.enkf.config import EnkfConfigNode
 from res.enkf.data import EnkfNode
@@ -93,17 +91,17 @@ class BatchSimulator:
             ens_config.addNode(EnkfConfigNode.create_ext_param(control_name, variables))
 
         for key in results:
-            ens_config.addNode(EnkfConfigNode.create_gen_data(key, "{}_%d".format(key)))
+            ens_config.addNode(EnkfConfigNode.create_gen_data(key, f"{key}_%d"))
 
     def _setup_sim(self, sim_id, controls, file_system):
         def _set_ext_param(ext_param, key, assignment):
             if isinstance(assignment, dict):  # handle suffixes
                 suffixes = ext_param.config[key]
                 if len(assignment) != len(suffixes):
+                    missingsuffixes = set(suffixes).difference(set(assignment.keys()))
                     raise KeyError(
-                        "Key {} is missing values for these suffixes: {}".format(
-                            key, set(suffixes).difference(set(assignment.keys()))
-                        )
+                        f"Key {key} is missing values for "
+                        f"these suffixes: {missingsuffixes}"
                     )
                 for suffix, value in assignment.items():
                     ext_node[key, suffix] = value
@@ -121,8 +119,10 @@ class BatchSimulator:
             ext_node = node.as_ext_param()
             if len(ext_node) != len(control.keys()):
                 raise KeyError(
-                    ("Expected {} variables for control {}, " "received {}.").format(
-                        len(ext_node), control_name, len(control.keys())
+                    (
+                        f"Expected {len(ext_node)} variables for "
+                        f"control {control_name}, "
+                        f"received {len(control.keys())}."
                     )
                 )
             for var_name, var_setting in control.items():
@@ -199,7 +199,7 @@ class BatchSimulator:
         # started, and things will typically be in a quite sorry state if an
         # exception occurs.
         itr = 0
-        mask = BoolVector(default_value=True, initial_size=len(case_data))
+        mask = [True] * len(case_data)
         sim_context = BatchContext(
             self.result_keys, self.ert, file_system, mask, itr, case_data
         )

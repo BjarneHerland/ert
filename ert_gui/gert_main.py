@@ -30,6 +30,8 @@ from ert_gui.main_window import GertMainWindow
 from ert_gui.simulation.simulation_panel import SimulationPanel
 from ert_gui.tools.export import ExportTool
 from ert_gui.tools.load_results import LoadResultsTool
+from ert_gui.tools.event_viewer import EventViewerTool
+from ert_gui.tools.event_viewer import GUILogHandler
 from ert_gui.tools.manage_cases import ManageCasesTool
 from ert_gui.tools.plot import PlotTool
 from ert_gui.tools.plugins import PluginHandler, PluginsTool
@@ -39,7 +41,7 @@ from ert_shared.libres_facade import LibresFacade
 
 from res.enkf import EnKFMain, ResConfig
 
-import ecl
+from ert_shared.services import Storage
 
 
 def run_gui(args):
@@ -47,7 +49,8 @@ def run_gui(args):
     app.setWindowIcon(resourceIcon("application/window_icon_cutout"))
     res_config = ResConfig(args.config)
 
-    # Create logger inside function to make sure all handlers have been added to the root-logger.
+    # Create logger inside function to make sure all handlers have been added to
+    # the root-logger.
     logger = logging.getLogger(__name__)
     logger.info(
         "Logging forward model jobs",
@@ -60,18 +63,19 @@ def run_gui(args):
     # Changing current working directory means we need to update the config file to
     # be the base name of the original config
     args.config = os.path.basename(args.config)
-    ert = EnKFMain(res_config, strict=True, verbose=args.verbose)
-    # window reference must be kept until app.exec returns
-    notifier = ErtNotifier(args.config)
-    window = _start_window(ert, notifier, args)
-    return app.exec_()
+    ert = EnKFMain(res_config, strict=True)
+    with Storage.connect_or_start_server(res_config=os.path.basename(args.config)):
+        notifier = ErtNotifier(args.config)
+        # window reference must be kept until app.exec returns:
+        window = _start_window(ert, notifier, args)  # noqa
+        return app.exec_()
 
 
 def _start_window(ert: EnKFMain, notifier: ErtNotifier, args: argparse.Namespace):
 
     _check_locale()
 
-    splash = ErtSplash(version_string="Version {}".format(ert_gui.__version__))
+    splash = ErtSplash(version_string=f"Version {ert_gui.__version__}")
     splash.show()
     splash.repaint()
     splash_screen_start_time = time.time()
@@ -108,15 +112,13 @@ def _check_locale():
     current_locale = QLocale()
     decimal_point = str(current_locale.decimalPoint())
     if decimal_point != ".":
-        msg = """
-** WARNING: You are using a locale with decimalpoint: '{}' - the ert application is
-            written with the assumption that '.' is used as decimalpoint, and chances
+        msg = f"""
+** WARNING: You are using a locale with decimalpoint: '{decimal_point}' - the ert application is
+            written with the assumption that '.' is  used as decimalpoint, and chances
             are that something will break if you continue with this locale. It is highly
-            reccomended that you set the decimalpoint to '.' using one of the environment
+            recommended that you set the decimalpoint to '.' using one of the environment
             variables 'LANG', LC_ALL', or 'LC_NUMERIC' to either the 'C' locale or
-            alternatively a locale which uses '.' as decimalpoint.\n""".format(
-            decimal_point
-        )
+            alternatively a locale which uses '.' as decimalpoint.\n"""  # noqa
 
         sys.stderr.write(msg)
 
@@ -126,17 +128,22 @@ def _setup_main_window(ert: EnKFMain, notifier: ErtNotifier, args: argparse.Name
     config_file = args.config
     window = GertMainWindow(config_file)
     window.setWidget(SimulationPanel(ert, notifier, config_file))
+    gui_log_handler = GUILogHandler()
+    logging.getLogger().addHandler(gui_log_handler)
     plugin_handler = PluginHandler(ert, ert.getWorkflowList().getPluginJobs(), window)
 
     window.addDock(
-        "Configuration Summary", SummaryPanel(ert), area=Qt.BottomDockWidgetArea
+        "Configuration summary", SummaryPanel(ert), area=Qt.BottomDockWidgetArea
     )
-    window.addTool(PlotTool(ert, config_file))
+    window.addTool(PlotTool(config_file))
     window.addTool(ExportTool(ert))
     window.addTool(WorkflowsTool(ert, notifier))
     window.addTool(ManageCasesTool(ert, notifier))
     window.addTool(PluginsTool(plugin_handler, notifier))
     window.addTool(RunAnalysisTool(ert, notifier))
     window.addTool(LoadResultsTool(facade))
+    event_viewer = EventViewerTool(gui_log_handler)
+    window.addTool(event_viewer)
+    window.close_signal.connect(event_viewer.close_wnd)
     window.adjustSize()
     return window

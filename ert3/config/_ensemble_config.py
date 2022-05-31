@@ -2,10 +2,13 @@ import sys
 from enum import Enum
 from typing import Any, Callable, Dict, Optional, Tuple, Type, no_type_check
 
-from pydantic import BaseModel, ValidationError, create_model, root_validator
+from pydantic import BaseModel, ValidationError, create_model, root_validator, validator
 
 import ert
+import ert.ensemble_evaluator
+
 from ._config_plugin_registry import ConfigPluginRegistry, create_plugged_model
+from ._experiment_config import ExperimentConfig
 
 if sys.version_info >= (3, 8):
     from typing import Literal
@@ -41,9 +44,9 @@ def _validate_transformation(
     def _validator(cls: Type[BaseModel], values: Dict[str, Any]) -> Dict[str, Any]:
         try:
             source = values["source"]
-            record = values["record"]
+            name = values["name"]
         except KeyError:
-            # defer validation of source/record to other, more specific validators
+            # defer validation of source/name to other, more specific validators
             return values
         try:
             namespace, location = source.split(".", maxsplit=1)
@@ -70,7 +73,7 @@ def _validate_transformation(
                     "location": location,
                 }
             else:
-                raise ValueError(f"no 'transformation' for input '{record}'") from error
+                raise ValueError(f"no 'transformation' for input '{name}'") from error
 
         if "location" in config and config["location"] != location:
             raise ValueError(
@@ -97,7 +100,7 @@ class EnsembleInput(_EnsembleConfig):
 
     _namespace: SourceNS
     _location: str
-    record: str
+    name: str
     source: str
 
     @no_type_check
@@ -130,7 +133,7 @@ class EnsembleInput(_EnsembleConfig):
 
 
 class EnsembleOutput(_EnsembleConfig):
-    record: str
+    name: str
 
 
 class EnsembleConfig(_EnsembleConfig):
@@ -139,6 +142,29 @@ class EnsembleConfig(_EnsembleConfig):
     output: Tuple[EnsembleOutput, ...]
     size: Optional[int] = None
     storage_type: str = "ert_storage"
+    active_range: Optional[str] = None
+    experiment: ExperimentConfig
+    """Specifies list of ranges of realizations that are active.
+    Default (``None``) means all realizations are active.
+    Empty string means no realizations are active."""
+
+    @validator("active_range")
+    def is_active_range_valid(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        ert.ensemble_evaluator.ActiveRange.validate_rangestring(value)
+        return value
+
+    @root_validator
+    def active_range_vs_size(cls, values):  # type: ignore
+        if values.get("active_range") is not None:
+            if values.get("size") is None:
+                return values
+            # If size is not provided, we accept any active_range
+            ert.ensemble_evaluator.ActiveRange.validate_rangestring_vs_length(
+                values["active_range"], values["size"]
+            )
+        return values
 
 
 def create_ensemble_config(

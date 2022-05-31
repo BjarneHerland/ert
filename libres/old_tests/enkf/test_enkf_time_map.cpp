@@ -15,21 +15,21 @@
    See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
    for more details.
 */
+#include <future>
+
 #include <stdlib.h>
 #include <unistd.h>
 
-#include <ert/util/test_work_area.h>
 #include <ert/util/test_util.h>
+#include <ert/util/test_work_area.h>
 #include <ert/util/util.h>
-#include <ert/res_util/arg_pack.hpp>
 #include <ert/util/vector.h>
 
 #include <ert/ecl/ecl_sum.h>
 
-#include <ert/res_util/thread_pool.hpp>
-#include <ert/enkf/time_map.hpp>
 #include <ert/enkf/enkf_fs.hpp>
 #include <ert/enkf/enkf_main.hpp>
+#include <ert/enkf/time_map.hpp>
 
 void ecl_test(const char *ecl_case) {
     ecl_sum_type *ecl_sum = ecl_sum_fread_alloc_case(ecl_case, ":");
@@ -47,19 +47,10 @@ void ecl_test(const char *ecl_case) {
 
     time_map_clear(ecl_map);
     time_map_update(ecl_map, 1, 256);
-    time_map_set_strict(ecl_map, false);
     test_assert_false(time_map_summary_update(ecl_map, ecl_sum));
 
     time_map_free(ecl_map);
     ecl_sum_free(ecl_sum);
-}
-
-static void map_update(void *arg) {
-    vector_type *arg_vector = vector_safe_cast(arg);
-    time_map_type *tmap = (time_map_type *)vector_iget(arg_vector, 0);
-    ecl_sum_type *sum = (ecl_sum_type *)vector_iget(arg_vector, 1);
-
-    time_map_summary_update(tmap, sum);
 }
 
 void test_inconsistent_summary(const char *case1, const char *case2) {
@@ -69,26 +60,10 @@ void test_inconsistent_summary(const char *case1, const char *case2) {
     time_map_type *ecl_map = time_map_alloc();
 
     test_assert_true(time_map_summary_update(ecl_map, ecl_sum1));
-    {
-        vector_type *arg = vector_alloc_new();
-        vector_append_ref(arg, ecl_map);
-        vector_append_ref(arg, ecl_sum2);
-        test_assert_util_abort("time_map_summary_update_abort", map_update,
-                               arg);
-        vector_free(arg);
-    }
 
     time_map_free(ecl_map);
     ecl_sum_free(ecl_sum1);
     ecl_sum_free(ecl_sum2);
-}
-
-static void alloc_index_map(void *arg) {
-    arg_pack_type *arg_pack = arg_pack_safe_cast(arg);
-    time_map_type *map = (time_map_type *)arg_pack_iget_ptr(arg_pack, 0);
-    ecl_sum_type *sum = (ecl_sum_type *)arg_pack_iget_ptr(arg_pack, 1);
-
-    time_map_alloc_index_map(map, sum);
 }
 
 void test_refcase(const char *refcase_name, const char *case1,
@@ -116,7 +91,6 @@ void test_refcase(const char *refcase_name, const char *case1,
     {
         time_map_type *ecl_map = time_map_alloc();
 
-        time_map_set_strict(ecl_map, false);
         time_map_attach_refcase(ecl_map, refcase);
 
         test_assert_false(time_map_summary_update(ecl_map, ecl_sum2));
@@ -194,7 +168,6 @@ void test_index_map(const char *case1, const char *case2, const char *case3,
     }
 
     /* case2 has an extra tstep in the middle of the case. */
-    time_map_set_strict(ecl_map, false);
     test_assert_false(time_map_summary_update(ecl_map, ecl_sum2));
     {
         int_vector_type *index_map =
@@ -219,13 +192,18 @@ void test_index_map(const char *case1, const char *case2, const char *case3,
     /* case4 has a missing tstep in the middle - that is not handled; and we abort */
     test_assert_false(time_map_summary_update(ecl_map, ecl_sum4));
     {
-        arg_pack_type *arg = arg_pack_alloc();
-        arg_pack_append_ptr(arg, ecl_map);
-        arg_pack_append_ptr(arg, ecl_sum4);
+        struct data_t {
+            time_map_type *map;
+            ecl_sum_type *sum;
+        } data{ecl_map, ecl_sum4};
 
-        test_assert_util_abort("time_map_alloc_index_map", alloc_index_map,
-                               arg);
-        arg_pack_free(arg);
+        test_assert_util_abort(
+            "time_map_alloc_index_map",
+            [](void *data_) {
+                auto data = reinterpret_cast<data_t *>(data_);
+                time_map_alloc_index_map(data->map, data->sum);
+            },
+            &data);
     }
 
     time_map_free(ecl_map);
@@ -240,11 +218,9 @@ void simple_test() {
     ecl::util::TestArea ta("simple");
     const char *mapfile = "map";
 
-    time_map_set_strict(time_map, false);
     test_assert_true(time_map_update(time_map, 0, 100));
     test_assert_true(time_map_update(time_map, 1, 200));
     test_assert_true(time_map_update(time_map, 1, 200));
-    test_assert_false(time_map_update(time_map, 1, 250));
 
     test_assert_true(time_map_equal(time_map, time_map));
     time_map_fwrite(time_map, mapfile);
@@ -278,10 +254,7 @@ void simple_test_inconsistent() {
     time_map_type *time_map = time_map_alloc();
 
     test_assert_true(time_map_update(time_map, 0, 100));
-    time_map_set_strict(time_map, false);
-    test_assert_false(time_map_update(time_map, 0, 101));
 
-    time_map_set_strict(time_map, true);
     test_assert_util_abort("time_map_update_abort", simple_update, time_map);
 
     time_map_free(time_map);
@@ -289,27 +262,27 @@ void simple_test_inconsistent() {
 
 #define MAP_SIZE 10000
 
-void *update_time_map(void *arg) {
-    time_map_type *time_map = time_map_safe_cast(arg);
-    int i;
-    for (i = 0; i < MAP_SIZE; i++)
-        time_map_update(time_map, i, i);
-
-    test_assert_int_equal(MAP_SIZE, time_map_get_size(time_map));
-    return NULL;
-}
-
 void thread_test() {
     time_map_type *time_map = time_map_alloc();
     test_assert_false(time_map_is_readonly(time_map));
+
+    auto update_time_map = [time_map] {
+        int i;
+        for (i = 0; i < MAP_SIZE; i++)
+            time_map_update(time_map, i, i);
+
+        test_assert_int_equal(MAP_SIZE, time_map_get_size(time_map));
+    };
+
     {
-        int pool_size = 1000;
-        thread_pool_type *tp = thread_pool_alloc(pool_size / 2, true);
+        std::vector<std::future<void>> futures;
+        int pool_size = 500;
+        for (int i{}; i < pool_size; ++i)
+            futures.emplace_back(
+                std::async(std::launch::async, update_time_map));
 
-        thread_pool_add_job(tp, update_time_map, time_map);
-
-        thread_pool_join(tp);
-        thread_pool_free(tp);
+        for (auto &future : futures)
+            future.get();
     }
     {
         int i;
@@ -325,7 +298,6 @@ void test_read_only() {
         time_map_type *tm = time_map_alloc();
 
         test_assert_true(time_map_is_instance(tm));
-        test_assert_true(time_map_is_strict(tm));
         test_assert_false(time_map_is_readonly(tm));
 
         time_map_update(tm, 0, 0);

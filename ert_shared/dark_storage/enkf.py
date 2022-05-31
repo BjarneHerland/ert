@@ -46,17 +46,21 @@ def get_name(type, uuid):
 
 
 def get_res(*, _: None = Depends(security)) -> LibresFacade:
-    global _libres_facade
     if _libres_facade is None:
         init_facade()
     return _libres_facade
 
 
-def get_size(ensemble_name):
-    res = get_res()
+def reset_res(*, _: None = Depends(security)) -> None:
+    global _libres_facade
+    if _libres_facade is not None:
+        _libres_facade = None
+    return _libres_facade
+
+
+def get_size(res: LibresFacade):
     return res.get_ensemble_size()
 
 
-def get_active_realizations(ensemble_name):
-    res = get_res()
+def get_active_realizations(res: LibresFacade, ensemble_name):
     return res.get_active_realizations(ensemble_name)

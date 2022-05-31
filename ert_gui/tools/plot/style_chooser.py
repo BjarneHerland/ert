@@ -4,7 +4,6 @@ from qtpy.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QLabel,
-    QHBoxLayout,
 )
 
 from ert_gui.plottery import PlotStyle
@@ -15,7 +14,7 @@ STYLE_AREA = ("Area", "#")
 STYLE_SOLID = ("Solid", "-")
 STYLE_DASHED = ("Dashed", "--")
 STYLE_DOTTED = ("Dotted", ":")
-STYLE_DASH_DOTTED = ("Dash Dotted", "-.")
+STYLE_DASH_DOTTED = ("Dash dotted", "-.")
 
 STYLESET_DEFAULT = "default"
 STYLESET_AREA = "area"
@@ -75,11 +74,11 @@ MARKERS = [
 class StyleChooser(QWidget):
     def __init__(self, line_style_set=STYLESET_DEFAULT):
         QWidget.__init__(self)
-        self._style = PlotStyle("StyleChooser Internal Style")
+        self._style = PlotStyle("StyleChooser internal style")
 
         self._styles = (
             STYLES["default"]
-            if not line_style_set in STYLES
+            if line_style_set not in STYLES
             else STYLES[line_style_set]
         )
 
@@ -108,12 +107,13 @@ class StyleChooser(QWidget):
         self.thickness_spinner.setSingleStep(0.1)
 
         self.size_spinner = QDoubleSpinBox()
-        self.size_spinner.setToolTip("Marker Size")
+        self.size_spinner.setToolTip("Marker size")
         self.size_spinner.setMinimum(0.1)
         self.size_spinner.setDecimals(1)
         self.size_spinner.setSingleStep(0.1)
 
-        # the text content of the spinner varies, but shouldn't push the control out of boundaries
+        # the text content of the spinner varies, but shouldn't push the control
+        # out of boundaries
         self.line_chooser.setMinimumWidth(110)
         layout.addWidget(self.line_chooser)
         layout.addWidget(self.thickness_spinner)
@@ -191,7 +191,7 @@ class StyleChooser(QWidget):
 
     def getStyle(self):
         """@rtype: PlotStyle"""
-        style = PlotStyle("Generated Style from StyleChooser")
+        style = PlotStyle("Generated style from StyleChooser")
         style.copyStyleFrom(self._style)
         return style
 
@@ -199,7 +199,7 @@ class StyleChooser(QWidget):
         if layout is None:
             layout = QHBoxLayout()
 
-        titles = ["Line Style", "Width", "Marker Style", "Size"]
+        titles = ["Line style", "Width", "Marker style", "Size"]
         sizes = self.getItemSizes()
         for title, size in zip(titles, sizes):
             label = QLabel(title)

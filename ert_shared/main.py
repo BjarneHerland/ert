@@ -75,7 +75,7 @@ def strip_error_message_and_raise_exception(validated):
 
 def valid_file(fname):
     if not os.path.isfile(fname):
-        raise ArgumentTypeError("File was not found: {}".format(fname))
+        raise ArgumentTypeError(f"File was not found: {fname}")
     return fname
 
 
@@ -177,7 +177,7 @@ def get_ert_parser(parser=None):
     parser.add_argument(
         "--version",
         action="version",
-        version="{}".format(ert_shared.__version__),
+        version=f"{ert_shared.__version__}",
     )
 
     subparsers = parser.add_subparsers(
@@ -224,7 +224,7 @@ def get_ert_parser(parser=None):
     ert_api_add_parser_options(ert_vis_parser)  # ert vis shares args with ert api
 
     # test_run_parser
-    test_run_description = "Run '{}' in cli".format(TEST_RUN_MODE)
+    test_run_description = f"Run '{TEST_RUN_MODE}' in cli"
     test_run_parser = subparsers.add_parser(
         TEST_RUN_MODE, help=test_run_description, description=test_run_description
     )
@@ -319,9 +319,9 @@ def get_ert_parser(parser=None):
         "--realizations",
         type=valid_realizations,
         help="These are the realizations that will be used to perform simulations."
-        "For example, if 'Number of realizations:50 and Active realizations is 0-9', "
+        "For example, if 'Number of realizations:50 and active realizations are 0-9', "
         "then only realizations 0,1,2,3,...,9 will be used to perform simulations "
-        "while realizations 10,11, 12,...,49 will be excluded",
+        "while realizations 10,11, 12,...,49 will be excluded.",
     )
     iterative_ensemble_smoother_parser.add_argument(
         "--current-case",
@@ -338,7 +338,7 @@ def get_ert_parser(parser=None):
     )
 
     # es_mda_parser
-    es_mda_description = "Run '{}' in cli".format(ES_MDA_MODE)
+    es_mda_description = f"Run '{ES_MDA_MODE}' in cli"
     es_mda_parser = subparsers.add_parser(
         ES_MDA_MODE, description=es_mda_description, help=es_mda_description
     )
@@ -354,17 +354,17 @@ def get_ert_parser(parser=None):
         "--realizations",
         type=valid_realizations,
         help="These are the realizations that will be used to perform simulations."
-        "For example, if 'Number of realizations:50 and Active realizations is 0-9', "
+        "For example, if 'Number of realizations:50 and active realizations are 0-9', "
         "then only realizations 0,1,2,3,...,9 will be used to perform simulations "
-        "while realizations 10,11, 12,...,49 will be excluded",
+        "while realizations 10,11, 12,...,49 will be excluded.",
     )
     es_mda_parser.add_argument(
         "--weights",
         type=valid_weights,
         default=MultipleDataAssimilation.default_weights,
-        help="Example Custom Relative Weights: '8,4,2,1'. This means Multiple Data "
-        "Assimilation Ensemble Smoother will half the weight applied to the "
-        "Observation Errors from one iteration to the next across 4 iterations.",
+        help="Example custom relative weights: '8,4,2,1'. This means multiple data "
+        "assimilation ensemble smoother will half the weight applied to the "
+        "observation errors from one iteration to the next across 4 iterations.",
     )
     es_mda_parser.add_argument(
         "--current-case",
@@ -441,6 +441,30 @@ def start_ert_server(mode: str):
         yield
 
 
+def log_config(config_path: str, logger: logging.Logger) -> None:
+    """
+    Logs what configuration was used to start ert. Because the config
+    parsing is quite convoluted we are not able to remove all the comments,
+    but the easy ones are filtered out.
+    """
+    if config_path is not None and os.path.isfile(config_path):
+        config_context = ""
+        with open(config_path, "r", encoding="utf-8") as file_obj:
+            for line in file_obj:
+                line = line.strip()
+                if not line or line.startswith("--"):
+                    continue
+                if "--" in line:
+                    # There might be a comment in this line, but it could
+                    # also be an argument to a job, so we do a quick check
+                    if not any(x in line for x in ['"', "'"]):
+                        line = line.split("--")[0].rstrip()
+                config_context += line + "\n"
+        logger.info(
+            f"Content of the configuration file ({config_path}):\n" + config_context
+        )
+
+
 def main():
     with open(LOGGING_CONFIG, encoding="utf-8") as conf_file:
         logging.config.dictConfig(yaml.safe_load(conf_file))
@@ -452,13 +476,17 @@ def main():
     args = ert_parser(None, sys.argv[1:])
     logger = logging.getLogger(__name__)
     if args.verbose:
-        logger.setLevel("DEBUG")
+        root_logger = logging.getLogger()
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(logging.INFO)
+        root_logger.addHandler(handler)
 
     FeatureToggling.update_from_args(args)
     try:
         with start_ert_server(args.mode), ErtPluginContext() as context:
             context.plugin_manager.add_logging_handle_to_root(logging.getLogger())
-            logger.info("Running ert with {}".format(str(args)))
+            logger.info(f"Running ert with {args}")
+            log_config(args.config, logger)
             args.func(args)
     except ErtCliError as err:
         logger.exception(str(err))

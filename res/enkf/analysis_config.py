@@ -34,7 +34,7 @@ class AnalysisConfig(BaseCClass):
     _alloc = ResPrototype("void* analysis_config_alloc(config_content)", bind=False)
     _alloc_load = ResPrototype("void* analysis_config_alloc_load(char*)", bind=False)
     _alloc_full = ResPrototype(
-        "void* analysis_config_alloc_full(int, double, bool, "
+        "void* analysis_config_alloc_full(double, bool, "
         "int, char*, double, bool, bool, "
         "double, int, int)",
         bind=False,
@@ -118,7 +118,8 @@ class AnalysisConfig(BaseCClass):
 
         if configs > 1:
             raise ValueError(
-                "Attempting to create AnalysisConfig object with multiple config objects"
+                "Attempting to create AnalysisConfig object "
+                "with multiple config objects"
             )
 
         if configs == 0:
@@ -130,15 +131,15 @@ class AnalysisConfig(BaseCClass):
 
         if user_config_file is not None:
             if not isfile(user_config_file):
-                raise IOError('No such configuration file "%s".' % user_config_file)
+                raise IOError(f'No such configuration file "{user_config_file}".')
 
             c_ptr = self._alloc_load(user_config_file)
             if c_ptr:
                 super().__init__(c_ptr)
             else:
                 raise ValueError(
-                    "Failed to construct AnalysisConfig instance from config file %s."
-                    % user_config_file
+                    "Failed to construct AnalysisConfig instance "
+                    f"from config file {user_config_file}."
                 )
 
         if config_content is not None:
@@ -150,7 +151,6 @@ class AnalysisConfig(BaseCClass):
 
         if config_dict is not None:
             c_ptr = self._alloc_full(
-                config_dict.get(ConfigKeys.NUM_REALIZATIONS, 10),
                 config_dict.get(ConfigKeys.ALPHA_KEY, 3.0),
                 config_dict.get(ConfigKeys.RERUN_KEY, False),
                 config_dict.get(ConfigKeys.RERUN_START_KEY, 0),
@@ -223,14 +223,14 @@ class AnalysisConfig(BaseCClass):
         """@rtype: AnalysisIterConfig"""
         return self._get_iter_config().setParent(self)
 
-    def get_stop_long_running(self):
+    def get_stop_long_running(self) -> bool:
         """@rtype: bool"""
         return self._get_stop_long_running()
 
     def set_stop_long_running(self, stop_long_running):
         self._set_stop_long_running(stop_long_running)
 
-    def get_max_runtime(self):
+    def get_max_runtime(self) -> int:
         """@rtype: int"""
         return self._get_max_runtime()
 
@@ -270,11 +270,11 @@ class AnalysisConfig(BaseCClass):
         return self._get_global_std_scaling()
 
     @property
-    def minimum_required_realizations(self):
+    def minimum_required_realizations(self) -> int:
         return self._get_min_realizations()
 
-    def haveEnoughRealisations(self, realizations, ensemble_size):
-        return realizations >= min(self.minimum_required_realizations, ensemble_size)
+    def haveEnoughRealisations(self, realizations):
+        return realizations >= self.minimum_required_realizations
 
     def __ne__(self, other):
         return not self == other

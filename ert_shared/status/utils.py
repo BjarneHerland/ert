@@ -1,5 +1,3 @@
-from ert_shared.status.entity import state
-from ert_shared.ensemble_evaluator.entity import identifiers as ids
 import math
 
 
@@ -12,7 +10,7 @@ def byte_with_unit(byte_count):
         byte_count = byte_count / power
         i += 1
 
-    return "{byte_count:.2f} {suffix}".format(byte_count=byte_count, suffix=suffixes[i])
+    return f"{byte_count:.2f} {suffixes[i]}"
 
 
 # This is not a case of not-invented-here, seems there is no good way of doing

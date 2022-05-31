@@ -18,28 +18,28 @@
 
 #include <filesystem>
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#include <ert/util/stringlist.h>
 #include <ert/util/string_util.h>
+#include <ert/util/stringlist.h>
 #include <ert/util/vector.h>
 
 #include <ert/ecl/ecl_grid.h>
 
 #include <ert/res_util/path_fmt.hpp>
 
+#include <ert/enkf/config_keys.hpp>
+#include <ert/enkf/container_config.hpp>
+#include <ert/enkf/enkf_defaults.hpp>
 #include <ert/enkf/enkf_macros.hpp>
 #include <ert/enkf/enkf_node.hpp>
-#include <ert/enkf/field_config.hpp>
-#include <ert/enkf/ext_param_config.hpp>
-#include <ert/enkf/gen_kw_config.hpp>
-#include <ert/enkf/surface_config.hpp>
-#include <ert/enkf/container_config.hpp>
 #include <ert/enkf/enkf_obs.hpp>
+#include <ert/enkf/ext_param_config.hpp>
+#include <ert/enkf/field_config.hpp>
+#include <ert/enkf/gen_kw_config.hpp>
 #include <ert/enkf/gen_obs.hpp>
-#include <ert/enkf/enkf_defaults.hpp>
-#include <ert/enkf/config_keys.hpp>
+#include <ert/enkf/surface_config.hpp>
 
 namespace fs = std::filesystem;
 
@@ -182,25 +182,6 @@ static enkf_config_node_type *enkf_config_node_alloc__(enkf_var_type var_type,
 
 bool enkf_config_node_vector_storage(const enkf_config_node_type *config_node) {
     return config_node->vector_storage;
-}
-
-static bool
-enkf_config_node_is_valid_FIELD(const enkf_config_node_type *config_node) {
-    bool valid = false;
-    if (config_node->var_type != INVALID_VAR)
-        valid =
-            field_config_is_valid((const field_config_type *)config_node->data);
-
-    return valid;
-}
-
-static bool
-enkf_config_node_is_valid_GEN_DATA(const enkf_config_node_type *config_node) {
-    bool valid =
-        gen_kw_config_is_valid((const gen_kw_config_type *)config_node->data);
-    valid = (valid && (config_node->enkf_outfile_fmt != NULL));
-
-    return valid;
 }
 
 void enkf_config_node_update_min_std(enkf_config_node_type *config_node,

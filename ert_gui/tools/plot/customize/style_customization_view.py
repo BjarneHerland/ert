@@ -9,7 +9,6 @@ from ert_gui.tools.plot import style_chooser as sc
 
 class StyleCustomizationView(CustomizationView):
     default_style = WidgetProperty()
-    refcase_style = WidgetProperty()
     history_style = WidgetProperty()
     observs_style = WidgetProperty()
     color_cycle = WidgetProperty()
@@ -23,9 +22,6 @@ class StyleCustomizationView(CustomizationView):
         self.addRow("", layout)
         self.addStyleChooser(
             "default_style", "Default", "Line and marker style for default lines."
-        )
-        self.addStyleChooser(
-            "refcase_style", "Refcase", "Line and marker style for the refcase line."
         )
         self.addStyleChooser(
             "history_style", "History", "Line and marker style for the history line."
@@ -49,7 +45,7 @@ class StyleCustomizationView(CustomizationView):
             self._color_boxes.append(color_box)
             color_layout.addWidget(color_box)
 
-        self.addRow("Color Cycle", color_layout)
+        self.addRow("Color cycle", color_layout)
         self.updateProperty(
             "color_cycle",
             StyleCustomizationView.getColorCycle,
@@ -57,7 +53,7 @@ class StyleCustomizationView(CustomizationView):
         )
 
         self._observs_color_box = self.createColorBox("observations_color")
-        self.addRow("Observations Color", self._observs_color_box)
+        self.addRow("Observations color", self._observs_color_box)
         self.updateProperty(
             "observs_color",
             StyleCustomizationView.getObservationsColor,
@@ -93,7 +89,6 @@ class StyleCustomizationView(CustomizationView):
         @type plot_config: ert_gui.plottery.PlotConfig
         """
         plot_config.setDefaultStyle(self.default_style)
-        plot_config.setRefcaseStyle(self.refcase_style)
         plot_config.setHistoryStyle(self.history_style)
         plot_config.setObservationsStyle(self.observs_style)
         plot_config.setObservationsColor(self.observs_color)
@@ -104,7 +99,6 @@ class StyleCustomizationView(CustomizationView):
         @type plot_config: ert_gui.plottery.PlotConfig
         """
         self.default_style = plot_config.defaultStyle()
-        self.refcase_style = plot_config.refcaseStyle()
         self.history_style = plot_config.historyStyle()
         self.observs_style = plot_config.observationsStyle()
         self.observs_color = plot_config.observationsColor()

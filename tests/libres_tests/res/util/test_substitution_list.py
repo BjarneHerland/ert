@@ -11,14 +11,14 @@ class SubstitutionListTest(ResTest):
 
         self.assertEqual(len(subst_list), 1)
 
+        # pylint: disable=pointless-statement
         with self.assertRaises(KeyError):
-            item = subst_list[2]
+            subst_list[2]
+
+            subst_list["NoSuchKey"]
 
         with self.assertRaises(KeyError):
-            item = subst_list["NoSuchKey"]
-
-        with self.assertRaises(KeyError):
-            item = subst_list.doc("NoSuchKey")
+            subst_list.doc("NoSuchKey")
 
         self.assertTrue("Key" in subst_list)
         self.assertEqual(subst_list["Key"], "Value")

@@ -22,15 +22,15 @@
 */
 #include <stdlib.h>
 
-#include <ert/util/util.h>
 #include <ert/util/string_util.h>
+#include <ert/util/util.h>
 
-#include <ert/enkf/enkf_util.hpp>
-#include <ert/enkf/enkf_macros.hpp>
 #include <ert/enkf/enkf_fs.hpp>
-#include <ert/enkf/gen_obs.hpp>
-#include <ert/enkf/gen_data.hpp>
+#include <ert/enkf/enkf_macros.hpp>
+#include <ert/enkf/enkf_util.hpp>
 #include <ert/enkf/gen_common.hpp>
+#include <ert/enkf/gen_data.hpp>
+#include <ert/enkf/gen_obs.hpp>
 
 #include "ert/python.hpp"
 /*
@@ -73,7 +73,6 @@ struct gen_obs_struct {
         obs_key; /* The key this observation is held by - in the enkf_obs structur (only for debug messages). */
     gen_data_file_format_type
         obs_format; /* The format, i.e. ASCII, binary_double or binary_float, of the observation file. */
-    matrix_type *error_covar;
     gen_data_config_type *data_config;
 };
 
@@ -87,8 +86,6 @@ static UTIL_SAFE_CAST_FUNCTION_CONST(
     free(gen_obs->data_index_list);
     free(gen_obs->obs_key);
     free(gen_obs->std_scaling);
-    if (gen_obs->error_covar != NULL)
-        matrix_free(gen_obs->error_covar);
 
     free(gen_obs);
 }
@@ -200,7 +197,6 @@ gen_obs_type *gen_obs_alloc__(const gen_data_config_type *data_config,
     obs->data_config =
         (gen_data_config_type *)data_config; // casting away the const ...
     obs->observe_all_data = true;
-    obs->error_covar = NULL;
     return obs;
 }
 
@@ -210,23 +206,13 @@ gen_obs_type *gen_obs_alloc__(const gen_data_config_type *data_config,
    "1,2,3,4-10, 17,19,22-100" string. Only one of these items can be
    != NULL. If both are NULL it is assumed that all the indices of the
    gen_data instance should be observed.
-
-   @error_covar_file is the name of file which contains a matrix of
-   error-covariance. The file data will be read with the function
-   matrix_fscanf_data(), i.e. it should consist of formatted
-   numbers. Since the matrix is symmetric it does not matter whether
-   it is represented in row-major or column-major order; newlines for
-   pretty reading can be inserted but are not necessary.
-
-   The error_covar_file should contain NO header information.
 */
 
 gen_obs_type *gen_obs_alloc(const gen_data_config_type *data_config,
                             const char *obs_key, const char *obs_file,
                             double scalar_value, double scalar_error,
                             const char *data_index_file,
-                            const char *data_index_string,
-                            const char *error_covar_file) {
+                            const char *data_index_string) {
     gen_obs_type *obs = gen_obs_alloc__(data_config, obs_key);
     if (obs_file)
         gen_obs_load_observation(
@@ -239,16 +225,6 @@ gen_obs_type *gen_obs_alloc(const gen_data_config_type *data_config,
         gen_obs_load_data_index(obs, data_index_file);
     else if (data_index_string)
         gen_obs_parse_data_index(obs, data_index_string);
-
-    if (error_covar_file != NULL) {
-        FILE *stream = util_fopen(error_covar_file, "r");
-
-        obs->error_covar = matrix_alloc(obs->obs_size, obs->obs_size);
-        matrix_fscanf_data(obs->error_covar, false, stream);
-
-        fclose(stream);
-    } else
-        obs->error_covar = NULL;
 
     return obs;
 }
@@ -294,52 +270,32 @@ double gen_obs_chi2(const gen_obs_type *gen_obs, const gen_data_type *gen_data,
 }
 
 void gen_obs_measure(const gen_obs_type *gen_obs, const gen_data_type *gen_data,
-                     node_id_type node_id, meas_data_type *meas_data,
-                     const ActiveList *__active_list) {
+                     node_id_type node_id, meas_data_type *meas_data) {
     gen_obs_assert_data_size(gen_obs, gen_data);
     {
-        int active_size = __active_list->active_size(gen_obs->obs_size);
-        meas_block_type *meas_block = meas_data_add_block(
-            meas_data, gen_obs->obs_key, node_id.report_step, active_size);
-        active_mode_type active_mode = __active_list->getMode();
+        meas_block_type *meas_block =
+            meas_data_add_block(meas_data, gen_obs->obs_key,
+                                node_id.report_step, gen_obs->obs_size);
         const bool_vector_type *forward_model_active =
             gen_data_config_get_active_mask(gen_obs->data_config);
 
-        int iobs;
-        if (active_mode == ALL_ACTIVE) {
-            for (iobs = 0; iobs < gen_obs->obs_size; iobs++) {
-                int data_index = gen_obs->data_index_list[iobs];
+        for (int iobs = 0; iobs < gen_obs->obs_size; iobs++) {
+            int data_index = gen_obs->data_index_list[iobs];
 
-                if (forward_model_active != NULL) {
-                    if (!bool_vector_iget(forward_model_active, data_index))
-                        continue; /* Forward model has deactivated this index - just continue. */
-                }
-
-                meas_block_iset(meas_block, node_id.iens, iobs,
-                                gen_data_iget_double(gen_data, data_index));
+            if (forward_model_active != NULL) {
+                if (!bool_vector_iget(forward_model_active, data_index))
+                    continue; /* Forward model has deactivated this index - just continue. */
             }
-        } else if (active_mode == PARTLY_ACTIVE) {
-            const int *active_list = __active_list->active_list_get_active();
-            int index;
 
-            for (index = 0; index < active_size; index++) {
-                iobs = active_list[index];
-                int data_index = gen_obs->data_index_list[iobs];
-                if (forward_model_active != NULL) {
-                    if (!bool_vector_iget(forward_model_active, data_index))
-                        continue; /* Forward model has deactivated this index - just continue. */
-                }
-                meas_block_iset(meas_block, node_id.iens, index,
-                                gen_data_iget_double(gen_data, data_index));
-            }
+            meas_block_iset(meas_block, node_id.iens, iobs,
+                            gen_data_iget_double(gen_data, data_index));
         }
     }
 }
 
 C_USED void gen_obs_get_observations(gen_obs_type *gen_obs,
                                      obs_data_type *obs_data, enkf_fs_type *fs,
-                                     int report_step,
-                                     const ActiveList *__active_list) {
+                                     int report_step) {
     const bool_vector_type *forward_model_active = NULL;
     if (gen_data_config_has_active_mask(gen_obs->data_config, fs,
                                         report_step)) {
@@ -350,52 +306,19 @@ C_USED void gen_obs_get_observations(gen_obs_type *gen_obs,
     }
 
     {
-        active_mode_type active_mode = __active_list->getMode();
-        int active_size = __active_list->active_size(gen_obs->obs_size);
-        obs_block_type *obs_block = obs_data_add_block(
-            obs_data, gen_obs->obs_key, active_size, NULL, false);
+        obs_block_type *obs_block =
+            obs_data_add_block(obs_data, gen_obs->obs_key, gen_obs->obs_size);
 
-        if (active_mode == ALL_ACTIVE) {
-            for (int iobs = 0; iobs < gen_obs->obs_size; iobs++)
-                obs_block_iset(obs_block, iobs, gen_obs->obs_data[iobs],
-                               IGET_SCALED_STD(gen_obs, iobs));
+        for (int iobs = 0; iobs < gen_obs->obs_size; iobs++)
+            obs_block_iset(obs_block, iobs, gen_obs->obs_data[iobs],
+                           IGET_SCALED_STD(gen_obs, iobs));
 
-            /* Setting some of the elements as missing, i.e. deactivated by the forward model. */
-            if (forward_model_active != NULL) {
-                for (int iobs = 0; iobs < gen_obs->obs_size; iobs++) {
-                    int data_index = gen_obs->data_index_list[iobs];
-                    if (!bool_vector_iget(forward_model_active, data_index))
-                        obs_block_iset_missing(obs_block, iobs);
-                }
-            }
-        } else if (active_mode == PARTLY_ACTIVE) {
-            const int *active_list = __active_list->active_list_get_active();
-            int active_size = __active_list->active_size(gen_obs->obs_size);
-            /*
-	There are three different indices active at the same time here:
-
-	  active_index : [0 ... active_size> - running over the size of
-     	                 the current local observation.
-
-      	  iobs : [0 ... size(obs)> - running over the complete size of
-                  	 the observation node.
-
-          data_index : The index in the data space corresponding to
-                         the observation index iobs.
-
-      */
-
-            for (int active_index = 0; active_index < active_size;
-                 active_index++) {
-                int iobs = active_list[active_index];
-                obs_block_iset(obs_block, active_index, gen_obs->obs_data[iobs],
-                               IGET_SCALED_STD(gen_obs, iobs));
-                {
-                    int data_index = gen_obs->data_index_list[iobs];
-                    if ((forward_model_active != NULL) &&
-                        (!bool_vector_iget(forward_model_active, data_index)))
-                        obs_block_iset_missing(obs_block, active_index);
-                }
+        /* Setting some of the elements as missing, i.e. deactivated by the forward model. */
+        if (forward_model_active != NULL) {
+            for (int iobs = 0; iobs < gen_obs->obs_size; iobs++) {
+                int data_index = gen_obs->data_index_list[iobs];
+                if (!bool_vector_iget(forward_model_active, data_index))
+                    obs_block_iset_missing(obs_block, iobs);
             }
         }
     }

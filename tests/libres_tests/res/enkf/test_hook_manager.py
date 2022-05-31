@@ -38,7 +38,8 @@ class HookManagerTest(ResTest):
             ConfigKeys.CONFIG_DIRECTORY: self.work_area.get_cwd(),
             ConfigKeys.CONFIG_FILE_KEY: "config",
             ConfigKeys.HOOK_WORKFLOW_KEY: [("MAGIC_PRINT", "PRE_SIMULATION")],
-            # these two entries makes the workflow_list load this workflow, but are not needed by hook_manager directly
+            # these two entries makes the workflow_list load this workflow, but
+            # are not needed by hook_manager directly
             ConfigKeys.LOAD_WORKFLOW_JOB: "workflowjobs/MAGIC_PRINT",
             ConfigKeys.LOAD_WORKFLOW: "workflows/MAGIC_PRINT",
         }
@@ -110,7 +111,9 @@ class HookManagerTest(ResTest):
         self.assertEqual(magic_workflow.getRunMode(), HookRuntime.PRE_SIMULATION)
 
     def remove_key(self, key):
-        return {i: self.config_data[i] for i in self.config_data if i != key}
+        return {
+            index: value for index, value in self.config_data.items() if index != key
+        }
 
     def set_key(self, key, val):
         copy = self.config_data.copy()
@@ -129,11 +132,11 @@ class HookManagerTest(ResTest):
                 ):
                     continue
                 if isinstance(val, str):
-                    config.write("{} {}\n".format(key, val))
+                    config.write(f"{key} {val}\n")
                 else:
                     # assume this is the list of tuple for hook workflows
                     for val1, val2 in val:
-                        config.write("{} {} {}\n".format(key, val1, val2))
+                        config.write(f"{key} {val1} {val2}\n")
 
     def make_empty_file(self, filename):
         open(filename, "a").close()

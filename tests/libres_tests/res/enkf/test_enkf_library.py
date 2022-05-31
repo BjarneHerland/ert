@@ -8,26 +8,23 @@ from res.enkf import (
     EclConfig,
     EnkfConfigNode,
     EnKFMain,
-    EnKFState,
     ErtTemplate,
-    LocalConfig,
     ResConfig,
 )
 from res.enkf.util import TimeMap
 
 
 @pytest.mark.unstable
-@pytest.mark.equinor_test
 class EnKFLibraryTest(ResTest):
     def setUp(self):
         self.case_directory = self.createTestPath("local/simple_config/")
 
     def test_failed_class_creation(self):
-        classes = [EnkfConfigNode, EnKFState, ErtTemplate, LocalConfig]
+        classes = [EnkfConfigNode, ErtTemplate]
 
         for cls in classes:
             with self.assertRaises(NotImplementedError):
-                temp = cls()
+                cls()
 
     @tmpdir()
     def test_ecl_config_creation(self):

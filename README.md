@@ -14,10 +14,12 @@
 [![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](https://www.gnu.org/licenses/gpl-3.0)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 
-ERT - Ensemble based Reservoir Tool - is a tool to run ensemble based on
-reservoir models. ERT was originally devised as tool to do model updating
-(history matching) with the EnKF method, now the primary method for model
-updating is the Ensemble Smoother (ES).
+ERT - Ensemble based Reservoir Tool - is designed for running
+ensembles of dynamical models such as reservoir models,
+in order to do sensitivity analysis and data assimilation.
+ERT supports data assimilation using the Ensemble Smoother (ES),
+Ensemble Smoother with Multiple Data Assimilation (ES-MDA) and
+Iterative Ensemble Smoother (IES).
 
 ## Prerequisites
 
@@ -54,40 +56,120 @@ Documentation for ert is located at [https://ert.readthedocs.io/en/latest/](http
 
 ## Developing
 
-*ERT* is Python and C software. To start developing, install it in editable
-mode:
+*ERT* uses Python for user-facing code and C++ for some backend code. Python is
+the easiest to work with and is likely what most developers will work with.
+
+### Developing Python
+
+You might first want to make sure that some system level packages are installed
+before attempting setup:
 
 ```
-$ git clone https://github.com/equinor/ert
-$ cd ert
-$ pip install -e .
+- pip
+- python include headers
+- (python) venv
+- (python) setuptools
+- (python) wheel
 ```
 
-Additional development packages must be installed to run the test suite:
-```
-$ pip install -r dev-requirements.txt
-$ pytest tests/
-```
+It is left as an exercise to the reader to figure out how to install these on
+their respective system.
 
-<strong>For Mac-users</strong> <em>The default maximum number of open files is normally relatively low on MacOS.
-This is likely to make tests crash with mysterious error-messages.
-You can inspect the current limits in your shell by issuing he command 'ulimit -a'.
-In order to increase maximum number of open files, run 'ulimit -n 16384' (or some other large number)
-and put the command in your .profile to make it persist.
-</em>
-
-ERT is meant to be installed using `setup.py`, directly or using `pip
-install ./`. The `CMakeLists.txt` in libres exists, but is used by `setup.py`
-to generate the ERT C library (the C library formerly known as *libres*) and
-by Github Actions to run C tests.
-
-ERT requires a recent version of `pip` - hence you are advised to upgrade
-your `pip` installation with
+To start developing the Python code, we suggest installing ERT in editable mode
+into a [virtual environment](https://docs.python.org/3/library/venv.html) to
+isolate the install (substitute the appropriate way of sourcing venv for your shell):
 
 ```sh
-$ pip install --upgrade pip
+# Create and enable a virtualenv
+python3 -m venv my_virtualenv
+source my_virtualenv/bin/activate
+
+# Update build dependencies
+pip install --upgrade pip wheel setuptools
+
+# Download and install ERT
+git clone https://github.com/equinor/ert
+cd ert
+pip install --editable .
 ```
-If your `pip` version is too old the installation of ERT will fail, and the error messages will be incomprehensible.
+
+### Trouble with setup
+
+If you encounter problems during install and attempt to fix them, it might be
+wise to delete the `_skbuild` folder before retrying an install.
+
+Additional development packages must be installed to run the test suite:
+```sh
+pip install -r dev-requirements.txt
+pytest tests/
+```
+
+As a simple test of your `ert` installation, you may try to run one of the
+examples, for instance:
+
+```
+cd test-data/local/poly_example
+# for non-gui trial run
+ert test_run poly.ert
+# for gui trial run
+ert gui poly.ert
+```
+
+Note that in order to parse floating point numbers from text files correctly,
+your locale must be set such that `.` is the decimal separator, e.g. by setting
+
+```
+# export LC_NUMERIC=en_US.UTF-8
+```
+
+in bash (or an equivalent way of setting that environment variable for your
+shell).
+
+### Developing C++
+
+C++ is the backbone of ERT 2 as in used extensively in important parts of ERT.
+There's a combination of legacy code and newer refactored code. The end goal is
+likely that some core performance-critical functionality will be implemented in
+C++ and the rest of the business logic will be implemented in Python.
+
+While running `--editable` will create the necessary Python extension module
+(`res/_lib.cpython-*.so`), changing C++ code will not take effect even when
+reloading ERT. This requires recompilation, which means reinstalling ERT from
+scratch.
+
+To avoid recompiling already-compiled source files, we provide the
+`script/build` script. From a fresh virtualenv:
+
+```sh
+git clone https://github.com/equinor/ert
+cd ert
+script/build
+```
+
+This command will update `pip` if necessary, install the build dependencies,
+compile ERT and install in editable mode, and finally install the runtime
+requirements. Further invocations will only build the necessary source files. To
+do a full rebuild, delete the `_skbuild` directory.
+
+Note: This will create a debug build, which is faster to compile and comes with
+debugging functionality enabled. This means that, for example, Eigen
+computations will be checked and will abort if preconditions aren't met (eg.
+when inverting a matrix, it will first check that the matrix is square). The
+downside is that this makes the code unoptimised and slow. Debugging flags are
+therefore not present in builds of ERT that we release on Komodo or PyPI. To
+build a release build for development, use `script/build --release`.
+
+### Notes
+
+1. If pip reinstallation fails during the compilation step, try removing the
+`_skbuild` directory.
+
+2. The default maximum number of open files is normally relatively low on MacOS
+and some Linux distributions. This is likely to make tests crash with mysterious
+error-messages. You can inspect the current limits in your shell by issuing he
+command `ulimit -a`. In order to increase maximum number of open files, run
+`ulimit -n 16384` (or some other large number) and put the command in your
+`.profile` to make it persist.
 
 ### Testing C code
 
@@ -131,123 +213,11 @@ cd test-data/local/poly_example
 ert gui poly.ert
 ````
 This opens up the ert graphical user interface.
-Finally, test ert by starting and successfully running the simulation. 
+Finally, test ert by starting and successfully running the simulation.
 
 ### ert with a reservoir simulator
 To actually get ert to work at your site you need to configure details about
 your system; at the very least this means you must configure where your
-reservoir simulator is installed. This is described in the *Post installation*
-section of the [libres README](https://github.com/Equinor/libres). In addition
-you might want to configure e.g. queue system in the `site-config` file, but
-that is not strictly necessary for a basic test.
-
-In the location `test-data/local/example_case` is a small ert case which can be
-used to verify that your installation is basically sound. The example config
-file looks like this:
-```
--- This ert configuration file is an example which can be used to check that your
--- local ert installation is basically sane. This example is not meant to be used
--- as an automatically run integration test, rather it is meant to be tested
--- interactively. In addition to the compiled application this will also verify that
--- the various configuration files are reasonably correctly stitched together.
---
--- To actually test this invoke the ert binary you have installed and give the path to
--- this file as argument:
---
---    /path/to/installed/ert/bin/ert example.ert
--- 
--- The example is based on the ECLIPSE100 forward model, that implies that you must
--- configure the local eclipse related details corresponding to your site[1].
--- 
--- NB: the current case has *not* been carefully constructed to demonstrate the
--- capabilities of ert; from a model updating perspective the current case is
--- totally uninteresting.
--- 
--- [1]: This amounts to editing the file ecl_config.yml in the res.fm.ecl python
--- package from the libres installation. See the documentation in the
--- ecl_config.yml example file supplied with the libres distribution, or
--- alternatively the "Post install configuration" section in the libres README. 
-
-NUM_REALIZATIONS 20
-
-QUEUE_SYSTEM LOCAL
-QUEUE_OPTION LOCAL MAX_RUNNING 4
-
-RUNPATH      output/simulations/runpath/realization-%d/iter-%d
-ENSPATH      output/storage
-
-ECLBASE   EXAMPLE%d
-DATA_FILE eclipse/model/SPE1.DATA
-REFCASE   eclipse/refcase/REFCASE
-
-GEN_KW MULT_PORO templates/poro.tmpl   poro.grdecl  parameters/poro.txt
-
--- This job will copy the file eclipse/input/schedule to the runpath folder. 
-SIMULATION_JOB COPY_FILE eclipse/input/schedule  
-
-
--- This forward model job requires that you have eclipse version 2016.02
--- installed locally, feel free to modify this to use a different version if
--- that is what you have installed.
-SIMULATION_JOB ECLIPSE100 2016.2 <ECLBASE>
-
-OBS_CONFIG observations/observations.txt
-
-
--- This tells ert that you want to load all summary vectors starting with 'W'. 
--- 'F' and 'BPR'. To be able to use the wildcard notation this way you need to 
--- specify a REFCASE.
-
-SUMMARY W*
-SUMMARY F*
-SUMMARY BPR*
-```
-
-**NB: Depending on which reservoir simulator versions you have installed locally
-you might have to change the eclipse version number 2016.2 to something else.**
-
-To actually test this go to the `test-data/local/example_case` directory and
-start `ert` by giving the full path to the installed binary:
-
-```
-   cd test-data/local/example_case
-   /local/ert/install/bin/ert example.ert
-```
-
-Then the `ert` gui should come up and you can press the `Run simulations`
-button. In addition to the gui there is a simple text interface which
-can be invoked with the `--text` option.
-
-
-## Configuration
-
-### The `site_config` file
-As part of the installation process ERT will install a file called
-`site-config` in `share/ert/site-config`; when ert starts this file will be
-loaded before the users personal config file. For more extensive use of `ert` it
-might be beneficial to customize the `site-config` file to your personal site.
-
-To customize, you need to set the environment variable `ERT_SITE_CONFIG` to
-point to an alternative file that will be used.
-
-### 6.2 Forward models
-
-ERT contains basic functionality for forward models to run the reservoir
-simulators Eclipse/flow and the geomodelling program RMS. Exactly how these
-programs depend on the setup on your site and you must make some modifications
-to two files installed with ERT:
-
-#### 6.2.1. Eclipse/flow configuration
-
-In the Python distribution installed by ERT there is a file
-`res/fm/ecl/ecl_config.yml` which is used to configure the eclipse/flow versions
-are available at the location. You can provide an alternative configuration file
-by setting the environment variable `ECL_SITE_CONFIG`.
-
-#### 6.2.2. RMS configuration
-
-In the Python distribution installed by ERT there is a file:
-`res/fm/rms/rms_config.yml` which contains some site specific RMS configuration.
-You should provide an alternative file with your local path to the `rms` wrapper
-script supplied by _Roxar_ by setting the environment variable `RMS_SITE_CONFIG`
-to point to the alternative file.
+reservoir simulator is installed. In addition you might want to configure e.g.
+queue system in the `site-config` file, but that is not strictly necessary for
+a basic test.

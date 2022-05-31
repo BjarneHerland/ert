@@ -41,7 +41,8 @@ then
     exit 1
 fi
 PYPATH_EXPECTED={expected_pythonpath}
-if [[ $PYTHONPATH != $PYPATH_EXPECTED ]] # first user defined, then config defined, then rest
+# first user defined, then config defined, then rest:
+if [[ $PYTHONPATH != $PYPATH_EXPECTED ]]
 then
     echo "PYTHONPATH set incorrectly"
     echo $PYTHONPATH should be $PYPATH_EXPECTED
@@ -68,7 +69,7 @@ def test_run_class_multi_seed(
     tmpdir, monkeypatch, test_input, expected_result, source_root
 ):
     with open("rms_config.yml", "w") as f:
-        f.write("executable:  {}/bin/rms".format(os.getcwd()))
+        f.write(f"executable:  {os.getcwd()}/bin/rms")
 
     os.mkdir("test_run_multi_seed")
     os.mkdir("run_path")
@@ -99,16 +100,16 @@ class RMSRunTest(ResTest):
 
     def test_create(self):
         with self.assertRaises(OSError):
-            r = RMSRun(0, "/project/does/not/exist", "workflow")
+            RMSRun(0, "/project/does/not/exist", "workflow")
 
         with TestAreaContext("test_create"):
             os.mkdir("rms")
-            r = RMSRun(0, "rms", "workflow")
+            RMSRun(0, "rms", "workflow")
 
     def test_run_class(self):
         with TestAreaContext("test_run"):
             with open("rms_config.yml", "w") as f:
-                f.write("executable:  {}/bin/rms".format(os.getcwd()))
+                f.write(f"executable:  {os.getcwd()}/bin/rms")
 
             os.mkdir("run_path")
             os.mkdir("bin")
@@ -174,7 +175,7 @@ class RMSRunTest(ResTest):
     def test_run(self):
         with TestAreaContext("test_run"):
             with open("rms_config.yml", "w") as f:
-                f.write("executable:  {}/bin/rms".format(os.getcwd()))
+                f.write(f"executable:  {os.getcwd()}/bin/rms")
 
             os.mkdir("run_path")
             os.mkdir("bin")
@@ -376,7 +377,7 @@ class RMSRunTest(ResTest):
     def test_run_class_with_existing_target_file(self):
         with TestAreaContext("test_run_existing_target"):
             with open("rms_config.yml", "w") as f:
-                f.write("executable:  {}/bin/rms".format(os.getcwd()))
+                f.write(f"executable:  {os.getcwd()}/bin/rms")
 
             os.mkdir("run_path")
             os.mkdir("bin")
@@ -411,7 +412,7 @@ class RMSRunTest(ResTest):
         with TestAreaContext("test_run"):
             wrapper_file_name = f"{os.getcwd()}/bin/rms_wrapper"
             with open("rms_config.yml", "w") as f:
-                f.write("executable:  {}/bin/rms\n".format(os.getcwd()))
+                f.write(f"executable:  {os.getcwd()}/bin/rms\n")
                 f.write(f"wrapper:  {wrapper_file_name}")
 
             os.mkdir("run_path")
@@ -597,7 +598,6 @@ env:
 
     def test_run_allow_no_env(self):
         with TestAreaContext("test_run"):
-            wrapper_file_name = f"{os.getcwd()}/bin/rms_wrapper"
             with open("rms_config.yml", "w") as f:
                 f.write(
                     f"""\

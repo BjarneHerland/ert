@@ -1,21 +1,23 @@
+from typing import List, Tuple
+
 from qtpy.QtCore import Qt
 from qtpy.QtWidgets import (
     QFrame,
-    QLabel,
-    QVBoxLayout,
-    QHBoxLayout,
-    QScrollArea,
-    QWidget,
     QGridLayout,
+    QHBoxLayout,
+    QLabel,
+    QScrollArea,
+    QVBoxLayout,
+    QWidget,
 )
 
 from ert_gui.ertwidgets.models.ertsummary import ErtSummary
 from res.enkf import EnKFMain
 
 
-class SummaryTemplate(object):
+class SummaryTemplate:
     def __init__(self, title):
-        super(SummaryTemplate, self).__init__()
+        super().__init__()
 
         self.text = ""
         self.__finished = False
@@ -26,18 +28,18 @@ class SummaryTemplate(object):
             style = (
                 "display: inline-block; width: 150px; vertical-align: top; float: left"
             )
-            self.text += '<div style="%s">\n' % style
+            self.text += f'<div style="{style}">\n'
             self.addTitle(title)
 
     def addTitle(self, title):
         if not self.__finished:
-            style = "font-size: 16px; font-weight: bold; font-variant: small-caps;"
-            self.text += '<div style="%s">%s</div>' % (style, title)
+            style = "font-size: 16px; font-weight: bold;"
+            self.text += f'<div style="{style}">{title}</div>'
 
     def addRow(self, value):
         if not self.__finished:
             style = "text-indent: 5px;"
-            self.text += '<div style="%s">%s</div>' % (style, value)
+            self.text += f'<div style="{style}">{value}</div>'
 
     def endGroup(self):
         if not self.__finished:
@@ -47,7 +49,7 @@ class SummaryTemplate(object):
         if not self.__finished:
             self.__finished = True
             self.endGroup()
-        return "<html>%s</html>" % self.text
+        return f"<html>{self.text}</html>"
 
 
 class SummaryPanel(QFrame):
@@ -75,10 +77,13 @@ class SummaryPanel(QFrame):
     def updateSummary(self):
         summary = ErtSummary(self.ert)
 
-        text = SummaryTemplate("Forward Model")
+        text = SummaryTemplate("Forward models")
 
-        for job in summary.getForwardModels():
-            text.addRow(job)
+        for fm_name, fm_count in _runlength_encode_list(summary.getForwardModels()):
+            if fm_count == 1:
+                text.addRow(fm_name)
+            else:
+                text.addRow(f"{fm_name} x{fm_count}")
 
         self.addColumn(text.getText())
 
@@ -103,3 +108,18 @@ class SummaryPanel(QFrame):
         layout.addStretch(1)
 
         self.layout.addLayout(layout)
+
+
+def _runlength_encode_list(strings: List[str]) -> List[Tuple[str, int]]:
+    """Runlength encode a list of strings.
+
+    Returns a list of tuples, first element is the string, and the second
+    element is the count of consecutive occurences of the string at the current
+    position."""
+    string_counts: List[Tuple[str, int]] = []
+    for string in strings:
+        if not string_counts or string_counts[-1][0] != string:
+            string_counts.append((string, 1))
+        else:
+            string_counts[-1] = (string, string_counts[-1][1] + 1)
+    return string_counts

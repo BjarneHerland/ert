@@ -15,11 +15,11 @@
    See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
    for more details.
 */
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
-#include <ert/util/test_util.h>
 #include <ert/enkf/ert_test_context.hpp>
+#include <ert/util/test_util.h>
 
 #include <ert/rms/rms_util.hpp>
 
@@ -136,7 +136,7 @@ void forward_initialize_node(enkf_main_type *enkf_main, const char *init_file,
         run_arg_type *run_arg = run_arg_alloc_ENSEMBLE_EXPERIMENT(
             "RUN_ID", fs, 0, 0, "simulations/run0", "path", subst_list);
 
-        ensemble_config_forward_init(enkf_state_get_ensemble_config(state),
+        ensemble_config_forward_init(enkf_main_get_ensemble_config(enkf_main),
                                      run_arg);
     }
 

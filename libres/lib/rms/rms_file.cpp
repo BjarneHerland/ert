@@ -18,18 +18,18 @@
 
 #include <filesystem>
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
+#include <ert/res_util/file_utils.hpp>
 #include <ert/util/hash.hpp>
 #include <ert/util/vector.hpp>
-#include <ert/res_util/file_utils.hpp>
 
+#include <ert/rms/rms_file.hpp>
+#include <ert/rms/rms_tag.hpp>
 #include <ert/rms/rms_type.hpp>
 #include <ert/rms/rms_util.hpp>
-#include <ert/rms/rms_tag.hpp>
-#include <ert/rms/rms_file.hpp>
 
 namespace fs = std::filesystem;
 
@@ -62,10 +62,6 @@ static bool rms_fmt_file(const rms_file_type *rms_file) {
             __func__, filetype, rms_file->filename);
     abort();
     return false; // will not happen
-}
-
-static void rms_file_add_tag(rms_file_type *rms_file, const rms_tag_type *tag) {
-    vector_append_owned_ref(rms_file->tag_list, tag, rms_tag_free__);
 }
 
 rms_tag_type *rms_file_get_tag_ref(const rms_file_type *rms_file,

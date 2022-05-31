@@ -28,7 +28,8 @@ class Field(BaseCClass):
     _ijk_get_double = ResPrototype("double field_ijk_get_double(field, int, int, int)")
     _iget_double = ResPrototype("double field_iget_double(field, int)")
     _export = ResPrototype(
-        "void field_export(field, char* , fortio , enkf_field_file_format_enum , bool , char*)"
+        "void field_export"
+        "(field, char* , fortio , enkf_field_file_format_enum , bool , char*)"
     )
 
     def __init__(self):
@@ -53,8 +54,7 @@ class Field(BaseCClass):
                 file_type = FieldConfig.exportFormat(filename)
             except ValueError:
                 sys.stderr.write(
-                    "Sorry - could not infer output format from filename:%s\n"
-                    % filename
+                    f"Sorry - could not infer output format from filename:{filename}\n"
                 )
                 return False
 

@@ -1,4 +1,5 @@
-import ert
+import ert.data
+import ert.storage
 import ert3
 
 
@@ -17,10 +18,10 @@ async def load_record(
 
 def sample_record(
     parameters_config: ert3.config.ParametersConfig,
-    parameter_group_name: str,
+    parameter_name: str,
     ensemble_size: int,
 ) -> ert.data.RecordCollection:
-    distribution = parameters_config[parameter_group_name].as_distribution()
+    distribution = parameters_config[parameter_name].as_distribution()
     return ert.data.RecordCollection(
         records=tuple(distribution.sample() for _ in range(ensemble_size))
     )

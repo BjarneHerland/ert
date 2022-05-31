@@ -163,7 +163,7 @@ def _generate_job(
     conf = open(config_file, "w")
     for key, val in zip(ext_job_keywords, values):
         if val is not None:
-            conf.write("%s %s\n" % (key, val))
+            conf.write(f"{key} {val}\n")
     conf.close()
 
     exec_file = open(executable, "w")
@@ -179,8 +179,8 @@ def _generate_job(
     return ext_job
 
 
-def empty_list_if_none(l):
-    return [] if l is None else l
+def empty_list_if_none(_list):
+    return [] if _list is None else _list
 
 
 def default_name_if_none(name):
@@ -213,14 +213,14 @@ def load_configs(config_file):
 def create_std_file(config, std="stdout", job_index=None):
     if job_index is None:
         if config[std]:
-            return "{}".format(config[std])
+            return f"{config[std]}"
         else:
-            return "{}.{}".format(config["name"], std)
+            return f'{config["name"]}.{std}'
     else:
         if config[std]:
-            return "{}.{}".format(config[std], job_index)
+            return f"{config[std]}.{job_index}"
         else:
-            return "{}.{}.{}".format(config["name"], std, job_index)
+            return f'{config["name"]}.{std}.{job_index}'
 
 
 class ForwardModelFormattedPrintTest(ResTest):
@@ -228,7 +228,10 @@ class ForwardModelFormattedPrintTest(ResTest):
     JOBS_JSON_FILE = "jobs.json"
 
     def validate_ext_job(self, ext_job, ext_job_config):
-        zero_if_none = lambda x: 0 if x is None else x
+        def zero_if_none(x):
+            if x is None:
+                return 0
+            return x
 
         self.assertEqual(ext_job.name(), default_name_if_none(ext_job_config["name"]))
         self.assertEqual(ext_job.get_executable(), ext_job_config["executable"])
@@ -314,8 +317,8 @@ class ForwardModelFormattedPrintTest(ResTest):
         self.assertEqual(umask, int(config["umask"], 8))
         self.assertEqual(len(selected_jobs), len(config["jobList"]))
 
-        for job_index in range(len(selected_jobs)):
-            job = joblist[selected_jobs[job_index]]
+        for job_index, selected_job in enumerate(selected_jobs):
+            job = joblist[selected_job]
             loaded_job = config["jobList"][job_index]
 
             # Since no argList is loaded as an empty list by ext_job
@@ -332,7 +335,7 @@ class ForwardModelFormattedPrintTest(ResTest):
                         create_std_file(job, std=key, job_index=job_index),
                         loaded_job[key],
                     )
-                elif key is "executable":
+                elif key == "executable":
                     assert job[key] in loaded_job[key]
                 else:
                     self.assertEqual(job[key], loaded_job[key])
@@ -405,7 +408,7 @@ class ForwardModelFormattedPrintTest(ResTest):
         first_value = "TheFirstValue"
         second_value = "TheSecondValue"
         third_value = "$FIRST:$SECOND"
-        third_value_correct = "%s:%s" % (first_value, second_value)
+        third_value_correct = f"{first_value}:{second_value}"
         varlist = EnvironmentVarlist()
         varlist[first] = first_value
         varlist[second] = second_value
@@ -424,7 +427,8 @@ class ForwardModelFormattedPrintTest(ResTest):
             self.assertEqual(first_value, env_config[first])
             self.assertEqual(second_value, env_config[second])
             self.assertEqual(third_value_correct, env_config[third])
-            update_config = config[update_string]
+            # pylint: disable=pointless-statement
+            config[update_string]
 
     def test_repr(self):
         with TestAreaContext("python/job_queue/forward_model_one_job"):
@@ -505,7 +509,12 @@ class ForwardModelFormattedPrintTest(ResTest):
                 run_id, os.getcwd(), "data_root", global_args, umask, varlist
             )
 
-            s = '{"start_time": null, "jobs": [{"status": "Success", "start_time": 1519653419.0, "end_time": 1519653419.0, "name": "SQUARE_PARAMS", "error": null, "current_memory_usage": 2000, "max_memory_usage": 3000}], "end_time": null, "run_id": ""}'
+            s = (
+                '{"start_time": null, "jobs": [{"status": "Success", '
+                '"start_time": 1519653419.0, "end_time": 1519653419.0, '
+                '"name": "SQUARE_PARAMS", "error": null, "current_memory_usage": 2000, '
+                '"max_memory_usage": 3000}], "end_time": null, "run_id": ""}'
+            )
 
             with open("status.json", "w") as f:
                 f.write(s)

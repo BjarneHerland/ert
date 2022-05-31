@@ -36,7 +36,6 @@ from .enkf_fs_manager import EnkfFsManager
 from .enkf_main import EnKFMain
 from .enkf_obs import EnkfObs
 from .enkf_simulation_runner import EnkfSimulationRunner
-from .enkf_state import EnKFState
 from .ensemble_config import EnsembleConfig
 from .enums import (
     ActiveMode,
@@ -57,15 +56,10 @@ from .ert_run_context import ErtRunContext
 from .ert_template import ErtTemplate
 from .ert_templates import ErtTemplates
 from .ert_workflow_list import ErtWorkflowList
-from .es_update import ESUpdate
+from .es_update import ESUpdate, ErtAnalysisError
 from .forward_load_context import ForwardLoadContext
 from .hook_manager import HookManager
 from .hook_workflow import HookWorkflow
-from .local_config import LocalConfig
-from .local_ministep import LocalMinistep
-from .local_obsdata import LocalObsdata
-from .local_obsdata_node import LocalObsdataNode
-from .local_updatestep import LocalUpdateStep
 from .model_config import ModelConfig
 from .node_id import NodeId
 from .observations import (
@@ -117,12 +111,6 @@ __all__ = [
     "EnkfFs",
     "RowScaling",
     "ActiveList",
-    "ObsBlock",
-    "ObsData",
-    "LocalObsdataNode",
-    "LocalObsdata",
-    "LocalMinistep",
-    "LocalUpdateStep",
     "EnkfFieldFileFormatEnum",
     "LoadFailTypeEnum",
     "EnkfVarType",
@@ -148,18 +136,16 @@ __all__ = [
     "EnkfObs",
     "ErtTemplate",
     "ErtTemplates",
-    "LocalConfig",
     "ModelConfig",
     "RunpathList",
     "RunpathNode",
     "HookWorkflow",
     "HookManager",
     "RNGConfig",
-    "LogConfig",
     "ResConfig",
     "ESUpdate",
+    "ErtAnalysisError",
     "RunArg",
-    "EnKFState",
     "ErtRunContext",
     "EnkfSimulationRunner",
     "EnkfFsManager",

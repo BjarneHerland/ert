@@ -18,13 +18,13 @@
 
 #include <filesystem>
 
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
+#include <ert/res_util/subst_list.hpp>
 #include <ert/util/test_util.h>
 #include <ert/util/test_work_area.hpp>
 #include <ert/util/util.h>
-#include <ert/res_util/subst_list.hpp>
 
 #include <ert/enkf/enkf_main.hpp>
 
@@ -129,12 +129,9 @@ int main(int argc, char **argv) {
         enkf_state_type *state = enkf_main_iget_state(enkf_main, 0);
         bool_vector_type *iactive =
             bool_vector_alloc(enkf_main_get_ensemble_size(enkf_main), true);
-        int error;
-        stringlist_type *msg_list = stringlist_alloc_new();
-        error = enkf_state_load_from_forward_model(state, run_arg, msg_list);
-        stringlist_free(msg_list);
+        auto error = enkf_state_load_from_forward_model(state, run_arg);
         bool_vector_free(iactive);
-        test_assert_int_equal(error, 0);
+        test_assert_true(error == LOAD_SUCCESSFUL);
     }
 
     test_assert_true(check_original_exported_data_equal(field_node));

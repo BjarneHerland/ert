@@ -68,7 +68,7 @@ class EnsembleConfig(BaseCClass):
     )
     _alloc_keylist_from_impl_type = ResPrototype(
         "stringlist_obj ensemble_config_alloc_keylist_from_impl_type(ens_config, \
-                                                                     ert_impl_type_enum)"
+                                                                     ert_impl_type_enum)"  # noqa
     )
     _add_node = ResPrototype(
         "void ensemble_config_add_node( ens_config , enkf_config_node )"
@@ -90,7 +90,8 @@ class EnsembleConfig(BaseCClass):
     ):
         if config_content is not None and config_dict is not None:
             raise ValueError(
-                "Attempting to create EnsembleConfig object with multiple config objects"
+                "Attempting to create EnsembleConfig "
+                "object with multiple config objects"
             )
 
         c_ptr = None
@@ -222,7 +223,7 @@ class EnsembleConfig(BaseCClass):
         if key in self:
             return self._get_node(key).setParent(self)
         else:
-            raise KeyError("The key:%s is not in the ensemble configuration" % key)
+            raise KeyError(f"The key:{key} is not in the ensemble configuration")
 
     def getNode(self, key):
         return self[key]

@@ -40,7 +40,7 @@ class ProcessJobDialog(QDialog):
         widget_layout = QHBoxLayout()
 
         size = 64
-        spin_movie = resourceMovie("ide/loading.gif")
+        spin_movie = resourceMovie("loading.gif")
         spin_movie.setSpeed(60)
         spin_movie.setScaledSize(QSize(size, size))
         spin_movie.start()
@@ -51,7 +51,7 @@ class ProcessJobDialog(QDialog):
         processing_animation.setMovie(spin_movie)
         widget_layout.addWidget(processing_animation)
 
-        self.processing_label = QLabel("Processing job: '%s'" % title)
+        self.processing_label = QLabel(f"Processing job: '{title}'")
         widget_layout.addWidget(self.processing_label, Qt.AlignBottom)
 
         widget.setLayout(widget_layout)
@@ -120,7 +120,7 @@ class ProcessJobDialog(QDialog):
 
     def __confirmCancel(self):
         cancel_box = self.__createMsgBox(
-            "Confirm Cancel", "Are you sure you want to cancel the running job?", ""
+            "Confirm cancel", "Are you sure you want to cancel the running job?", ""
         )
         cancel_box.setIcon(QMessageBox.Question)
         cancel_box.setStandardButtons(QMessageBox.Yes | QMessageBox.No)

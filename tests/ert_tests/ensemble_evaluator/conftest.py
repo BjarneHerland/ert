@@ -8,13 +8,8 @@ import pytest
 from ensemble_evaluator_utils import TestEnsemble
 
 from ert_shared.ensemble_evaluator.config import EvaluatorServerConfig
-from ert_shared.ensemble_evaluator.ensemble.builder import (
-    create_ensemble_builder,
-    create_legacy_job_builder,
-    create_realization_builder,
-    create_step_builder,
-)
-from ert_shared.ensemble_evaluator.entity.snapshot import SnapshotBuilder
+import ert.ensemble_evaluator
+from ert.ensemble_evaluator.snapshot import SnapshotBuilder
 from ert_shared.ensemble_evaluator.evaluator import EnsembleEvaluator
 from res.enkf import ConfigKeys
 from res.enkf.queue_config import QueueConfig
@@ -30,6 +25,7 @@ def snapshot():
         .add_job(
             step_id="0",
             job_id="0",
+            index="0",
             name="job0",
             data={},
             status="Unknown",
@@ -37,6 +33,7 @@ def snapshot():
         .add_job(
             step_id="0",
             job_id="1",
+            index="1",
             name="job1",
             data={},
             status="Unknown",
@@ -44,6 +41,7 @@ def snapshot():
         .add_job(
             step_id="0",
             job_id="2",
+            index="2",
             name="job2",
             data={},
             status="Unknown",
@@ -51,6 +49,7 @@ def snapshot():
         .add_job(
             step_id="0",
             job_id="3",
+            index="3",
             name="job3",
             data={},
             status="Unknown",
@@ -78,7 +77,7 @@ def queue_config():
 @pytest.fixture
 def make_ensemble_builder(queue_config):
     def _make_ensemble_builder(tmpdir, num_reals, num_jobs, job_sleep=0):
-        builder = create_ensemble_builder()
+        builder = ert.ensemble_evaluator.EnsembleBuilder()
         with tmpdir.as_cwd():
             ext_job_list = []
             for job_index in range(0, num_jobs):
@@ -122,7 +121,7 @@ def make_ensemble_builder(queue_config):
                     )
 
                 step = (
-                    create_step_builder()
+                    ert.ensemble_evaluator.StepBuilder()
                     .set_id("0")
                     .set_job_name("job dispatch")
                     .set_job_script("job_dispatch.py")
@@ -141,14 +140,15 @@ def make_ensemble_builder(queue_config):
 
                 for index, job in enumerate(ext_job_list):
                     step.add_job(
-                        create_legacy_job_builder()
-                        .set_id(index)
+                        ert.ensemble_evaluator.LegacyJobBuilder()
+                        .set_id(str(index))
+                        .set_index(str(index))
                         .set_name(f"dummy job {index}")
                         .set_ext_job(job)
                     )
 
                 builder.add_realization(
-                    create_realization_builder()
+                    ert.ensemble_evaluator.RealizationBuilder()
                     .active(True)
                     .set_iens(iens)
                     .add_step(step)

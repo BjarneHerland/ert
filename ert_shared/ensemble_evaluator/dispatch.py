@@ -1,35 +1,47 @@
-from collections import defaultdict, deque, OrderedDict
-
+import logging
 import asyncio
+import time
+
+from collections import defaultdict, OrderedDict
 from typing import Optional
 
-import ert_shared.ensemble_evaluator.entity.identifiers as identifiers
-from ert_shared.status.entity.state import (
+from ert.ensemble_evaluator import identifiers
+
+from ert.ensemble_evaluator.state import (
     ENSEMBLE_STATE_CANCELLED,
     ENSEMBLE_STATE_FAILED,
     ENSEMBLE_STATE_STOPPED,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class Batcher:
-    def __init__(self, timeout, loop=None):
+    def __init__(self, timeout, max_batch=1000, loop=None):
         self._timeout = timeout
+        self._max_batch = max_batch
         self._running = True
-        self._buffer = deque()
+        self._buffer = []
 
         # Schedule task
         self._task = asyncio.ensure_future(self._job(), loop=loop)
 
     async def _work(self):
-        event_buffer, self._buffer = self._buffer, deque()
-        if event_buffer:
-            function_to_events_map = OrderedDict()
-            for f, event in event_buffer:
-                if f not in function_to_events_map:
-                    function_to_events_map[f] = []
-                function_to_events_map[f].append(event)
-            for f, events in function_to_events_map.items():
-                await f(events)
+        t0 = time.time()
+        event_buffer, self._buffer = (
+            self._buffer[: self._max_batch],
+            self._buffer[self._max_batch :],
+        )
+        function_to_events_map = OrderedDict()
+        for f, event in event_buffer:
+            if f not in function_to_events_map:
+                function_to_events_map[f] = []
+            function_to_events_map[f].append(event)
+        logger.debug(
+            f"processed {len(event_buffer)} events in {(time.time()-t0):.6f}s. {len(self._buffer)} left in queue"  # noqa: E501
+        )
+        for f, events in function_to_events_map.items():
+            await f(events)
 
     def put(self, f, event):
         self._buffer.append((f, event))
@@ -95,7 +107,7 @@ class Dispatcher:
         )
 
     async def _ensemble_stopped_handler(self, events):
-        if self._ensemble.get_status() != ENSEMBLE_STATE_FAILED:
+        if self._ensemble.status != ENSEMBLE_STATE_FAILED:
             await self._evaluator_callback(
                 identifiers.EVTYPE_ENSEMBLE_STOPPED,
                 self._ensemble.update_snapshot(events),
@@ -103,21 +115,21 @@ class Dispatcher:
             )
 
     async def _ensemble_started_handler(self, events):
-        if self._ensemble.get_status() != ENSEMBLE_STATE_FAILED:
+        if self._ensemble.status != ENSEMBLE_STATE_FAILED:
             await self._evaluator_callback(
                 identifiers.EVTYPE_ENSEMBLE_STARTED,
                 self._ensemble.update_snapshot(events),
             )
 
     async def _ensemble_cancelled_handler(self, events):
-        if self._ensemble.get_status() != ENSEMBLE_STATE_FAILED:
+        if self._ensemble.status != ENSEMBLE_STATE_FAILED:
             await self._evaluator_callback(
                 identifiers.EVTYPE_ENSEMBLE_CANCELLED,
                 self._ensemble.update_snapshot(events),
             )
 
     async def _ensemble_failed_handler(self, events):
-        if self._ensemble.get_status() not in [
+        if self._ensemble.status not in [
             ENSEMBLE_STATE_STOPPED,
             ENSEMBLE_STATE_CANCELLED,
         ]:
@@ -131,7 +143,8 @@ class Dispatcher:
             if batching:
                 if self._batcher is None:
                     raise RuntimeError(
-                        f"Requested batching of {event} with handler {f}, but no batcher was specified"
+                        f"Requested batching of {event} with handler {f}, "
+                        "but no batcher was specified"
                     )
                 self._batcher.put(f, event)
             else:

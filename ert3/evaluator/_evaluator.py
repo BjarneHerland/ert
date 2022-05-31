@@ -2,24 +2,24 @@ import pickle
 import sys
 import time
 from concurrent import futures
-from typing import Dict, Optional
+from typing import Dict, Optional, Union, Any
 
 import ert
-from ert.ensemble_evaluator import EvaluatorTracker
 from ert_shared.cli.monitor import Monitor
 from ert_shared.ensemble_evaluator.config import EvaluatorServerConfig
-from ert_shared.ensemble_evaluator.ensemble.base import Ensemble
-from ert_shared.ensemble_evaluator.entity.identifiers import (
-    EVTYPE_EE_TERMINATED,
-)
 from ert_shared.ensemble_evaluator.evaluator import EnsembleEvaluator
-from ert_shared.status.entity.state import (
+from ert.ensemble_evaluator.state import (
     ENSEMBLE_STATE_STOPPED,
     ENSEMBLE_STATE_FAILED,
+)
+from ert.ensemble_evaluator.identifiers import (
+    EVTYPE_EE_TERMINATED,
 )
 
 
 class ERT3RunModel:
+    # pylint: disable=too-many-instance-attributes
+    # some attributes might be encapsulated in the future
     def __init__(self, phase_count: int = 1):
         self._phase: int = 0
         self._phase_count: int = phase_count
@@ -28,6 +28,8 @@ class ERT3RunModel:
         self._job_stop_time: int = 0
         self._fail_message: str = ""
         self._failed: bool = False
+        self._simulation_arguments: Dict[str, Any] = {}
+        self.support_restart: bool = False
 
     def teardown_context(self) -> None:
         return None
@@ -70,6 +72,28 @@ class ERT3RunModel:
     def isIndeterminate(self) -> bool:
         return False
 
+    def restart(self) -> None:
+        raise NotImplementedError
+
+    def reset(self) -> None:
+        self._failed = False
+        self._phase = 0
+
+    def stop_time(self) -> int:
+        return self._job_stop_time
+
+    def start_time(self) -> int:
+        return self._job_start_time
+
+    def get_runtime(self) -> Union[int, float]:
+        if self.stop_time() < self.start_time():
+            return time.time() - self.start_time()
+        else:
+            return self.stop_time() - self.start_time()
+
+    def has_failed_realizations(self) -> bool:
+        return False
+
 
 def _run(
     ensemble_evaluator: EnsembleEvaluator,
@@ -96,22 +120,28 @@ def _run(
 
 
 def evaluate(
-    ensemble: Ensemble,
+    ensemble: ert.ensemble_evaluator.Ensemble,
     custom_port_range: Optional[range] = None,
+    use_gui: bool = False,
 ) -> Dict[int, Dict[str, ert.data.RecordTransmitter]]:
     config = EvaluatorServerConfig(custom_port_range=custom_port_range)
 
-    run_model = ERT3RunModel()
-    tracker = EvaluatorTracker(
-        run_model,
-        config.get_connection_info(),
-    )
-    monitor = Monitor(out=sys.stderr, color_always=False)  # type: ignore
-
     ee = EnsembleEvaluator(ensemble=ensemble, config=config, iter_=0)
+    if use_gui:
+        # pylint: disable=import-outside-toplevel
+        from ert_gui.simulation.run_dialog import run_monitoring_ert3
 
-    executor = futures.ThreadPoolExecutor()
-    future = executor.submit(_run, ee, run_model)
-    monitor.monitor(tracker)  # type: ignore
-    result: Dict[int, Dict[str, ert.data.RecordTransmitter]] = future.result()
+        return run_monitoring_ert3(ee, ERT3RunModel())
+
+    result: Dict[int, Dict[str, ert.data.RecordTransmitter]] = {}
+    with futures.ThreadPoolExecutor() as executor:
+        run_model = ERT3RunModel()
+        tracker = ert.ensemble_evaluator.EvaluatorTracker(
+            run_model,
+            config.get_connection_info(),
+        )
+        monitor = Monitor(out=sys.stderr, color_always=False)  # type: ignore
+        future = executor.submit(_run, ee, run_model)
+        monitor.monitor(tracker)  # type: ignore
+        result = future.result()
     return result

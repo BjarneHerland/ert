@@ -26,7 +26,7 @@ class EnsemblePlotData(BaseCClass):
         super().__init__(c_pointer)
 
         if file_system is not None:
-            self.load(file_system, user_index, input_mask)
+            self.load(file_system, user_index)
 
     def load(self, file_system, user_index=None):
         assert isinstance(file_system, EnkfFs)
@@ -51,4 +51,4 @@ class EnsemblePlotData(BaseCClass):
         self._free()
 
     def __repr__(self):
-        return "EnsemblePlotData(size = %d) %s" % (len(self), self._ad_str())
+        return f"EnsemblePlotData(size = {len(self)}) {self._ad_str()}"

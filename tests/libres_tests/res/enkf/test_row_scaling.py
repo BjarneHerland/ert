@@ -63,12 +63,13 @@ def test_basic():
     assert row_scaling[9] == 0.25
 
     with pytest.raises(IndexError):
-        var = row_scaling[10]
+        # pylint: disable=pointless-statement
+        row_scaling[10]
 
-    for i in range(len(row_scaling)):
+    for index, _ in enumerate(row_scaling):
         r = random.random()
-        row_scaling[i] = r
-        assert row_scaling[i] == row_scaling.clamp(r)
+        row_scaling[index] = r
+        assert row_scaling[index] == row_scaling.clamp(r)
 
     nx = 10
     ny = 10
@@ -103,7 +104,7 @@ def test_field_config():
     actnum[10] = 0
 
     grid = EclGridGenerator.create_rectangular((nx, ny, nz), (1, 1, 1), actnum)
-    fc = FieldConfig("PORO", grid)
+    FieldConfig("PORO", grid)
     row_scaling = RowScaling()
     obs_pos = grid.get_xyz(ijk=(5, 5, 1))
     length_scale = (2, 1, 0.50)

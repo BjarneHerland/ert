@@ -27,6 +27,196 @@ Release Notes
  Miscellaneous:
    -
 
+Version 2.35
+------------
+
+Breaking changes:
+  - Change default inversion to IES_INVERSION_EXACT (`#3193 <https://github.com/equinor/ert/pull/3193>`_)
+  - Remove flag for using aa_projection in IES and ES (`#3230 <https://github.com/equinor/ert/pull/3230>`_)
+  - Fix scaling of ESMDA weights (`#3211 <https://github.com/equinor/ert/pull/3211>`_)
+  - Replaced fm message with logging statements and remove unused workflows LOAD_RESULTS(_ITER) (`#3252 <https://github.com/equinor/ert/pull/3252>`_)
+  - Remove option of loading from non-unified summary files (`#3247 <https://github.com/equinor/ert/pull/3247>`_)
+  - Remove setting `MODULE` from workflows (`#3288 <https://github.com/equinor/ert/pull/3288>`_)
+  - Remove analysis enums (`#3283 <https://github.com/equinor/ert/pull/3283>`_)
+
+Bugfixes:
+  - Fix AnalysisIterConfig._repr_() and add test (`#3171 <https://github.com/equinor/ert/pull/3171>`_)
+  - Fix index out of bounds for active realizations < ensemble size in ESMDA (`#3200 <https://github.com/equinor/ert/pull/3200>`_)
+  - Fix bug where valid run_path was not recognised (`#3254 <https://github.com/equinor/ert/pull/3254>`_)
+
+New features:
+  - Add event viewer tool to gui (`#3136 <https://github.com/equinor/ert/pull/3136>`_)
+  - ert3: Add realization selection support in ert3 (`#3095 <https://github.com/equinor/ert/pull/3095>`_)
+  - ert3: Add visualise parameter to ert3 for starting webviz-ert (`#3209 <https://github.com/equinor/ert/pull/3209>`_)
+  - ert3: Add support for a scalar NumericalRecord (`#2934 <https://github.com/equinor/ert/pull/2934>`_)
+
+Improvements:
+  - Update poly_example to use more accurate observations (`#3149 <https://github.com/equinor/ert/pull/3149>`_)
+  - Upgrade ERT icon set to Equinor design system (`#3178 <https://github.com/equinor/ert/pull/3178>`_)
+  - Drop Title Case In Ert Gui (`#3190 <https://github.com/equinor/ert/pull/3190>`_)
+  - Remove .index files from block_fs (`#3185 <https://github.com/equinor/ert/pull/3185>`_)
+  - Log the contents of the ERT2 configuration file (`#3218 <https://github.com/equinor/ert/pull/3218>`_)
+  - Update algorithm GUI config (`#3213 <https://github.com/equinor/ert/pull/3213>`_)
+  - Make image cache singleton (`#3237 <https://github.com/equinor/ert/pull/3237>`_)
+  - Upgrade and add more info to log message when failing to read SUMMARY (`#3232 <https://github.com/equinor/ert/pull/3232>`_)
+  - Refactor parts of `block_fs.cpp` (`#3233 <https://github.com/equinor/ert/pull/3233>`_)
+  - Test realization masks in base_run_model (`#3275 <https://github.com/equinor/ert/pull/3275>`_)
+  - dlopen libres with RTLD_LOCAL (`#3210 <https://github.com/equinor/ert/pull/3210>`_)
+  - Replace util_abort on time map with logging error and failing realisation (`#3256 <https://github.com/equinor/ert/pull/3256>`_)
+  - Add details view to simulations failed including error logs (`#3290 <https://github.com/equinor/ert/pull/3290>`_)
+  - Refactor RunDialog to depend less on RunModel (`#3108 <https://github.com/equinor/ert/pull/3108>`_)
+  - Remove unused function local_ministep_get_obs_data (`#3158 <https://github.com/equinor/ert/pull/3158>`_)
+  - Remove unused function enkf_analysis_deactivate_std_zero (`#3176 <https://github.com/equinor/ert/pull/3176>`_)
+  - Remove `thread_pool.cpp`, `arg_pack.cpp` et al (`#3117 <https://github.com/equinor/ert/pull/3117>`_)
+  - Undo pinning of click in dev-requirements (`#3208 <https://github.com/equinor/ert/pull/3208>`_)
+  - Fix typo recieved (`#3220 <https://github.com/equinor/ert/pull/3220>`_)
+  - Use explicit int-value from enum (`#3221 <https://github.com/equinor/ert/pull/3221>`_)
+  - Delete unused test_analysis_test_external_module.c (`#3206 <https://github.com/equinor/ert/pull/3206>`_)
+  - Extend flake8 linting to ert-directory and ert_tests (`#3203 <https://github.com/equinor/ert/pull/3203>`_)
+  - Remove using matrix_type from serializer (`#3236 <https://github.com/equinor/ert/pull/3236>`_)
+  - Remove unused covar from obs_data and replace replace matrix_type with eigen in meas_data (`#3234 <https://github.com/equinor/ert/pull/3234>`_)
+  - Type and style for ensemble evaluator builder code (`#3219 <https://github.com/equinor/ert/pull/3219>`_)
+  - Print warning every time non-ISO time format is used in simulation setup  (`#3238 <https://github.com/equinor/ert/pull/3238>`_)
+  - Remove unused functions in enkf_state.cpp (`#3243 <https://github.com/equinor/ert/pull/3243>`_)
+  - Ensure duplexer stop entails a websocket close (`#3246 <https://github.com/equinor/ert/pull/3246>`_)
+  - Avoid DeprecationWarning from qtbot (`#3245 <https://github.com/equinor/ert/pull/3245>`_)
+  - Address comments left over from pull 3219 (`#3253 <https://github.com/equinor/ert/pull/3253>`_)
+  - Bring libres_tests up to flake8 standard (`#3250 <https://github.com/equinor/ert/pull/3250>`_)
+  - Filter out comments from logged configuration (`#3249 <https://github.com/equinor/ert/pull/3249>`_)
+  - Replace deprecated `..index.is_all_dates` in plottery (`#3231 <https://github.com/equinor/ert/pull/3231>`_)
+  - Remove unused function -time_map_summary_upgrade107 (`#3257 <https://github.com/equinor/ert/pull/3257>`_)
+  - Remove matrixtype from  rowscaling (`#3242 <https://github.com/equinor/ert/pull/3242>`_)
+  - Replace deprecated `..index.is_all_dates` in plottery (`#3265 <https://github.com/equinor/ert/pull/3265>`_)
+  - Remove matrix type from ert (`#3268 <https://github.com/equinor/ert/pull/3268>`_)
+  - Remove documentation about internal C workflows (`#3276 <https://github.com/equinor/ert/pull/3276>`_)
+  - Remove pytest-runner (`#3285 <https://github.com/equinor/ert/pull/3285>`_)
+  - Avoid BoolVector in Python code (`#3251 <https://github.com/equinor/ert/pull/3251>`_)
+  - Remove `setup_requires` from `setup.py` (`#3286 <https://github.com/equinor/ert/pull/3286>`_)
+  - Make fixtures cleanup after themselves (`#3287 <https://github.com/equinor/ert/pull/3287>`_)
+  - Enable `SortInclude` in clang-format configuration (`#3284 <https://github.com/equinor/ert/pull/3284>`_)
+  - Fix all flake8 issues in ert  (`#3281 <https://github.com/equinor/ert/pull/3281>`_)
+  - Extend weak pylinting to more directories (`#3289 <https://github.com/equinor/ert/pull/3289>`_)
+  - Use caplog to make sure root log level is INFO in test (`#3300 <https://github.com/equinor/ert/pull/3300>`_)
+  - Use model factory in gui (`#3294 <https://github.com/equinor/ert/pull/3294>`_)
+  - Decrease example size for polynomial doe (`#3304 <https://github.com/equinor/ert/pull/3304>`_)
+  - Propagate logs from ensemble_evaluator, storage and status (`#3293 <https://github.com/equinor/ert/pull/3293>`_)
+  - Dark storage performance (`#3051 <https://github.com/equinor/ert/pull/3051>`_)
+
+Dependencies:
+  - Pin PyQt5-sip to 12.9.1 or lower (`#3261 <https://github.com/equinor/ert/pull/3261>`_)
+  - Pin click in dev-requirements to 8.0.2 (`#3172 <https://github.com/equinor/ert/pull/3172>`_)
+
+Miscellaneous:
+  - Fix to circumvent pylint bug (`#3163 <https://github.com/equinor/ert/pull/3163>`_)
+  - Add additional information on failure in test_http_response (`#3132 <https://github.com/equinor/ert/pull/3132>`_)
+  - Add release notes for ert 2.34 (`#3165 <https://github.com/equinor/ert/pull/3165>`_)
+  - Update labels for automatic release notes generation (`#3192 <https://github.com/equinor/ert/pull/3192>`_)
+  - Add maintenance as release notes category (`#3199 <https://github.com/equinor/ert/pull/3199>`_)
+  - Modify ModelConfig.enspath to hold an absolute file-path (`#3186 <https://github.com/equinor/ert/pull/3186>`_)
+  - Create example for running history matching in python using analysis module (`#3131 <https://github.com/equinor/ert/pull/3131>`_)
+  - Have repeated flaky tests run new python instance (`#3189 <https://github.com/equinor/ert/pull/3189>`_)
+  - Add extension to error message (`#3291 <https://github.com/equinor/ert/pull/3291>`_)
+
+Version 2.34
+------------
+
+Breaking changes:
+  - Remove the IDE (Built-in config editor) (`#3148 <https://github.com/equinor/ert/pull/3148>`_)
+  - Remove legacy tracker (`#2965 <https://github.com/equinor/ert/pull/2965>`_)
+  - Remove enkf_obs instance from local_obsdata (`#3046 <https://github.com/equinor/ert/pull/3046>`_)
+
+Bugfixes:
+  - Remove inactive analysis module options (`#3126 <https://github.com/equinor/ert/pull/3126>`_)
+  - Fix row scaling local configuration job (`#2954 <https://github.com/equinor/ert/pull/2954>`_)
+  - Improve failure behaviour from ert client to storage (`#2956 <https://github.com/equinor/ert/pull/2956>`_)
+  - Add an out of bounds check (`#2969 <https://github.com/equinor/ert/pull/2969>`_)
+  - Set strict=True when creating EnkfMain, make testname unique (`#3042 <https://github.com/equinor/ert/pull/3042>`_)
+  - Skip lazy_load flag test which is failing on jenkins (`#3038 <https://github.com/equinor/ert/pull/3038>`_)
+  - Undo removal of getAll  - collectors (`#3034 <https://github.com/equinor/ert/pull/3034>`_)
+  - [ert3] Ignore command location during step execution (`#3147 <https://github.com/equinor/ert/pull/3147>`_)
+
+New features:
+  - Support Python 3.10 (`#2834 <https://github.com/equinor/ert/pull/2834>`_)
+  - Fix removing duplicates, added test to verify, improved performance (`#2951 <https://github.com/equinor/ert/pull/2951>`_)
+  - Disable lazy_loading of summary-data by default (`#2976 <https://github.com/equinor/ert/pull/2976>`_)
+  - Ies from python (`#3145 <https://github.com/equinor/ert/pull/3145>`_)
+  - [ert3] Auto-generate documentation for plugins (`#3138 <https://github.com/equinor/ert/pull/3138>`_)
+  - [ert3] Add support for log-uniform distribution (`#3156 <https://github.com/equinor/ert/pull/3156>`_)
+  - [ert3] ERT3 local test run (`#2755 <https://github.com/equinor/ert/pull/2755>`_)
+  - [ert3] Plugin-in transformation configuration and wider transformation usage (`#3025 <https://github.com/equinor/ert/pull/3025>`_)
+  - [ert3] Cli monitor for ert3 (`#2960 <https://github.com/equinor/ert/pull/2960>`_)
+
+Improvements:
+  - Refactor interactions between JobQueue and LegacyEnsemble. (`#3144 <https://github.com/equinor/ert/pull/3144>`_)
+  - Remove sorting of variables (`#3128 <https://github.com/equinor/ert/pull/3128>`_)
+  - Add logging of EnKFMain usage in workflows (`#3140 <https://github.com/equinor/ert/pull/3140>`_)
+  - Make tests use localhost (`#3160 <https://github.com/equinor/ert/pull/3160>`_)
+  - Set proper timeout for Storage.start_server() (`#3076 <https://github.com/equinor/ert/pull/3076>`_)
+  - Print a message to user about starting Webviz-ert (`#3075 <https://github.com/equinor/ert/pull/3075>`_)
+  - Add webviz-ert documentation (`#3065 <https://github.com/equinor/ert/pull/3065>`_)
+  - Fix timing in test batch sim (`#3091 <https://github.com/equinor/ert/pull/3091>`_)
+  - Force GC to avoid conflict with running C++ dtors later (`#3100 <https://github.com/equinor/ert/pull/3100>`_)
+  - Reduce log level for MAX_RUNTIME reached and only log once (`#2770 <https://github.com/equinor/ert/pull/2770>`_)
+  - Rename test to avoid conflict (`#3098 <https://github.com/equinor/ert/pull/3098>`_)
+  - Test tracker progress (`#3110 <https://github.com/equinor/ert/pull/3110>`_)
+  - Fix typo, successfull -> successful (`#3107 <https://github.com/equinor/ert/pull/3107>`_)
+  - Automatically increase softlimit for max open files while running tests (`#3112 <https://github.com/equinor/ert/pull/3112>`_)
+  - Start statically checking code in ert_shared/models (`#3094 <https://github.com/equinor/ert/pull/3094>`_)
+  - Remove global ert (`#3118 <https://github.com/equinor/ert/pull/3118>`_)
+  - Increasing default timeout from 20s to 120s in BaseService. (`#3129 <https://github.com/equinor/ert/pull/3129>`_)
+  - Handle error publish changes (`#3130 <https://github.com/equinor/ert/pull/3130>`_)
+  - Remove usage of global ERT in run models (`#3039 <https://github.com/equinor/ert/pull/3039>`_)
+  - Remove usage of threadpool in block_fs_driver (`#3021 <https://github.com/equinor/ert/pull/3021>`_)
+  - Various improvements to flaky tests (
+    `#3119 <https://github.com/equinor/ert/pull/3119>`_,
+    `#3125 <https://github.com/equinor/ert/pull/3125>`_,
+    `#2983 <https://github.com/equinor/ert/pull/2983>`_,
+    `#2987 <https://github.com/equinor/ert/pull/2987>`_
+    )
+  - Various improvements to the analysis module (
+    `#3060 <https://github.com/equinor/ert/pull/3060>`_,
+    `#2913 <https://github.com/equinor/ert/pull/2913>`_,
+    `#3082 <https://github.com/equinor/ert/pull/3082>`_,
+    `#3087 <https://github.com/equinor/ert/pull/3087>`_,
+    `#3083 <https://github.com/equinor/ert/pull/3083>`_,
+    `#3097 <https://github.com/equinor/ert/pull/3097>`_,
+    `#2958 <https://github.com/equinor/ert/pull/2958>`_,
+    `#2948 <https://github.com/equinor/ert/pull/2948>`_,
+    `#2999 <https://github.com/equinor/ert/pull/2999>`_,
+    `#2964 <https://github.com/equinor/ert/pull/2964>`_,
+    `#3018 <https://github.com/equinor/ert/pull/3018>`_,
+    `#3028 <https://github.com/equinor/ert/pull/3028>`_,
+    `#2962 <https://github.com/equinor/ert/pull/2962>`_,
+    `#3035 <https://github.com/equinor/ert/pull/3035>`_,
+    `#3005 <https://github.com/equinor/ert/pull/3005>`_,
+    `#3058 <https://github.com/equinor/ert/pull/3058>`_,
+    `#2966 <https://github.com/equinor/ert/pull/2966>`_
+    )
+
+Dependencies:
+  - Pin pylint to version <2.13.0 (`#3161 <https://github.com/equinor/ert/pull/3161>`_)
+  - Remove requirement mypy < 0.920 (`#3090 <https://github.com/equinor/ert/pull/3090>`_)
+  - Remove dependency on semeio (`#2980 <https://github.com/equinor/ert/pull/2980>`_)
+  - Remove dependency on BLAS and LAPACK (`#3000 <https://github.com/equinor/ert/pull/3000>`_)
+
+Miscellaneous:
+  - Ignore errors in rmtree (`#3155 <https://github.com/equinor/ert/pull/3155>`_)
+  - Fix filename typo in tests (`#3072 <https://github.com/equinor/ert/pull/3072>`_)
+  - Use self._timeout in fetch_conn_info() (`#3078 <https://github.com/equinor/ert/pull/3078>`_)
+  - Add host ensemble server config (`#3096 <https://github.com/equinor/ert/pull/3096>`_)
+  - job_dispatch: Makedir in, out, err locations (`#2998 <https://github.com/equinor/ert/pull/2998>`_)
+  - Add an optional has_observations flag to the record (`#2979 <https://github.com/equinor/ert/pull/2979>`_)
+  - Remove unused job_queue from BaseRunModel (`#3019 <https://github.com/equinor/ert/pull/3019>`_)
+  - clang-format: Remove version check (`#3027 <https://github.com/equinor/ert/pull/3027>`_)
+  - Make `extern "C"` explicit for each function (`#2963 <https://github.com/equinor/ert/pull/2963>`_)
+  - Use the key_manager from enkf_main (`#3026 <https://github.com/equinor/ert/pull/3026>`_)
+  - Remove utility functions of the legacy tracker (`#3006 <https://github.com/equinor/ert/pull/3006>`_)
+  - Introduce read-only info class derived from EvaluatorServerConfig (`#3045 <https://github.com/equinor/ert/pull/3045>`_)
+  - Correct exception name typo (`#3047 <https://github.com/equinor/ert/pull/3047>`_)
+  - Make port range larger in test (`#3059 <https://github.com/equinor/ert/pull/3059>`_)
+  - [ert3] Drop experiment_run_config from load_resource (`#3102 <https://github.com/equinor/ert/pull/3102>`_)
+  - [ert3] Add better error handling when trying to rerun an experiment (`#2891 <https://github.com/equinor/ert/pull/2891>`_)
+
 
 Version 2.33
 ------------

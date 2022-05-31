@@ -2,7 +2,7 @@ import itertools
 from ert_gui.plottery import PlotStyle, PlotLimits
 
 
-class PlotConfig(object):
+class PlotConfig:
 
     # The plot_settings input argument is an internalisation of the (quite few) plot
     # policy settings which can be set in the configuration file.
@@ -11,7 +11,7 @@ class PlotConfig(object):
         self._title = title
         self._plot_settings = plot_settings
         if self._plot_settings is None:
-            self._plot_settings = {"SHOW_REFCASE": True, "SHOW_HISTORY": True}
+            self._plot_settings = {"SHOW_HISTORY": True}
 
         self._line_color_cycle_colors = ["#000000"]
         self._line_color_cycle = itertools.cycle(self._line_color_cycle_colors)  # Black
@@ -31,15 +31,6 @@ class PlotConfig(object):
 
         self._default_style = PlotStyle(
             name="Default", color=None, marker="", alpha=0.8
-        )
-
-        self._refcase_style = PlotStyle(
-            name="Refcase",
-            alpha=0.8,
-            line_style="--",
-            marker="",
-            width=2.0,
-            enabled=self._plot_settings["SHOW_REFCASE"],
         )
 
         self._history_style = PlotStyle(
@@ -64,7 +55,7 @@ class PlotConfig(object):
             name="Distribution", line_style="", marker="o", alpha=0.5, size=10.0
         )
         self._distribution_line_style = PlotStyle(
-            name="Distribution Lines", line_style="-", alpha=0.25, width=1.0
+            name="Distribution lines", line_style="-", alpha=0.25, width=1.0
         )
         self._distribution_line_style.setEnabled(False)
         self._current_color = None
@@ -115,7 +106,7 @@ class PlotConfig(object):
         return self._title is None
 
     def defaultStyle(self):
-        style = PlotStyle("Default Style")
+        style = PlotStyle("Default style")
         style.copyStyleFrom(self._default_style)
         style.color = self.currentColor()
         return style
@@ -125,39 +116,33 @@ class PlotConfig(object):
 
     def observationsStyle(self):
         """@rtype: PlotStyle"""
-        style = PlotStyle("Observations Style")
+        style = PlotStyle("Observations style")
         style.copyStyleFrom(self._observs_style)
-        return style
-
-    def refcaseStyle(self):
-        """@rtype: PlotStyle"""
-        style = PlotStyle("Refcase Style")
-        style.copyStyleFrom(self._refcase_style)
         return style
 
     def historyStyle(self):
         """@rtype: PlotStyle"""
-        style = PlotStyle("History Style")
+        style = PlotStyle("History style")
         style.copyStyleFrom(self._history_style)
         return style
 
     def histogramStyle(self):
         """@rtype: PlotStyle"""
-        style = PlotStyle("Histogram Style")
+        style = PlotStyle("Histogram style")
         style.copyStyleFrom(self._histogram_style)
         style.color = self.currentColor()
         return style
 
     def distributionStyle(self):
         """@rtype: PlotStyle"""
-        style = PlotStyle("Distribution Style")
+        style = PlotStyle("Distribution style")
         style.copyStyleFrom(self._distribution_style)
         style.color = self.currentColor()
         return style
 
     def distributionLineStyle(self):
         """@rtype: ert_gui.plottery.PlotStyle"""
-        style = PlotStyle("Distribution Line Style")
+        style = PlotStyle("Distribution line style")
         style.copyStyleFrom(self._distribution_line_style)
         return style
 
@@ -184,12 +169,6 @@ class PlotConfig(object):
 
     def isObservationsEnabled(self):
         return self._observs_style.isEnabled()
-
-    def setRefcaseEnabled(self, enabled):
-        self._refcase_style.setEnabled(enabled)
-
-    def isRefcaseEnabled(self):
-        return self._refcase_style.isEnabled()
 
     def setHistoryEnabled(self, enabled):
         self._history_style.setEnabled(enabled)
@@ -240,13 +219,6 @@ class PlotConfig(object):
         copy_style.color = self.currentColor()
         return copy_style
 
-    def setRefcaseStyle(self, style):
-        """@type style: PlotStyle"""
-        self._refcase_style.line_style = style.line_style
-        self._refcase_style.marker = style.marker
-        self._refcase_style.width = style.width
-        self._refcase_style.size = style.size
-
     def setHistoryStyle(self, style):
         """@type style: PlotStyle"""
         self._history_style.line_style = style.line_style
@@ -288,7 +260,6 @@ class PlotConfig(object):
         :type other: PlotConfig
         """
         self._default_style.copyStyleFrom(other._default_style, copy_enabled_state=True)
-        self._refcase_style.copyStyleFrom(other._refcase_style, copy_enabled_state=True)
         self._history_style.copyStyleFrom(other._history_style, copy_enabled_state=True)
         self._histogram_style.copyStyleFrom(
             other._histogram_style, copy_enabled_state=True

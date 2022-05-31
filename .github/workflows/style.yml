@@ -37,15 +37,58 @@ jobs:
 
     - name: Lint with flake8
       run: |
-        flake8 ert3 tests/ert_tests/ert3
+        flake8
 
     - name: Run black
       run: |
-        pip install black==22.1.0
+        pip install black[jupyter]
         black . --check
 
     - name: Run pylint
       run: |
         pip install .  # We need the dependencies of ERT to avoid import-error
         pylint ert ert3
-        pylint --disable=all --enable="line-too-long, unused-import, super-with-arguments, useless-object-inheritance" res
+        pylint --disable=all \
+          --enable="\
+            access-member-before-definition, \
+            bad-thread-instantiation, \
+            chained-comparison, \
+            consider-iterating-dictionary, \
+            consider-using-dict-items, \
+            consider-using-dict-iterms, \
+            consider-using-enumerate, \
+            consider-using-enumerate, \
+            consider-using-f-string
+            consider-using-from-import, \
+            consider-using-generator, \
+            consider-using-min-builtin, \
+            consider-using-set-comprehension, \
+            empty-docstring, \
+            expression-not-assigned, \
+            global-variable-not-assigned, \
+            missing-final-newline, \
+            no-else-break, \
+            no-method-argument, \
+            not-async-context-manager, \
+            parse-error, \
+            pointless-statement, \
+            simplifiable-if-statement, \
+            subprocess-run-check, \
+            super-with-arguments, \
+            undefined-all-variable, \
+            undefined-loop-variable, \
+            unidiomatic-typecheck, \
+            unneeded-not, \
+            unsubscriptable-object, \
+            unsupported-assignment-operation, \
+            unused-import, \
+            use-a-generator, \
+            use-dict-literal, \
+            use-maxsplit-arg, \
+            used-before-assignment, \
+            useless-import-alias, \
+            useless-object-inheritance \
+            useless-return, \
+            useless-super-delegation, \
+            " \
+          docs ert_data ert_gui ert_logging ert_shared job_runner res tests/*

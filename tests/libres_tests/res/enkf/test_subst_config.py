@@ -95,7 +95,9 @@ class SubstConfigTest(ResTest):
             SubstConfig(config_dict=self.set_key(ConfigKeys.DATA_FILE, "not_a_file"))
 
     def remove_key(self, key):
-        return {i: self.config_data[i] for i in self.config_data if i != key}
+        return {
+            index: value for index, value in self.config_data.items() if index != key
+        }
 
     def set_key(self, key, val):
         copy = self.config_data.copy()
@@ -104,10 +106,9 @@ class SubstConfigTest(ResTest):
 
     def assertKeyValue(self, subst_config, key, val):
         actual_val = subst_config.__getitem__(key)
-        assert (
-            actual_val == val
-        ), "subst_config does not contain key/value pair ({}, {}). Actual value was: {}".format(
-            key, val, actual_val
+        assert actual_val == val, (
+            f"subst_config does not contain key/value pair ({key}, {val})"
+            f". Actual value was: {actual_val}"
         )
 
     def make_config_file(self, filename):
@@ -118,22 +119,23 @@ class SubstConfigTest(ResTest):
 
             # write the rest of the relevant config items to the file
             config.write(
-                "{} {}\n".format(
-                    ConfigKeys.RUNPATH_FILE, self.config_data[ConfigKeys.RUNPATH_FILE]
-                )
+                f"{ConfigKeys.RUNPATH_FILE} "
+                f"{self.config_data[ConfigKeys.RUNPATH_FILE]}\n"
             )
             defines = self.config_data[ConfigKeys.DEFINE_KEY]
             for key in defines:
                 val = defines[key]
-                config.write("{} {} {}\n".format(ConfigKeys.DEFINE_KEY, key, val))
+                config.write(f"{ConfigKeys.DEFINE_KEY} {key} {val}\n")
             data_kws = self.config_data[ConfigKeys.DATA_KW_KEY]
             for key in data_kws:
                 val = data_kws[key]
-                config.write("{} {} {}\n".format(ConfigKeys.DATA_KW_KEY, key, val))
-            config.write(
-                "{} {}\n".format(
-                    ConfigKeys.DATA_FILE, self.config_data[ConfigKeys.DATA_FILE]
+                config.write(
+                    f"{ConfigKeys.DATA_KW_KEY} {key} {val}\n".format(
+                        ConfigKeys.DATA_KW_KEY, key, val
+                    )
                 )
+            config.write(
+                f"{ConfigKeys.DATA_FILE} {self.config_data[ConfigKeys.DATA_FILE]}\n"
             )
 
 

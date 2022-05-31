@@ -16,17 +16,17 @@
    for more details.
 */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <pthread.h>
-#include <unistd.h>
 #include <pwd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <unistd.h>
 
-#include <stdexcept>
-#include <ctime>
 #include <cmath>
+#include <ctime>
 #include <set>
+#include <stdexcept>
 #include <string>
 #include <thread>
 #include <unordered_map>
@@ -34,8 +34,8 @@
 #include <vector>
 
 #include <ert/logging.hpp>
-#include <ert/util/util.hpp>
 #include <ert/util/stringlist.hpp>
+#include <ert/util/util.hpp>
 
 #include <ert/job_queue/queue_driver.hpp>
 #include <ert/job_queue/slurm_driver.hpp>
@@ -217,10 +217,10 @@ template <typename C> static std::string join_string(const C &strings) {
     return full_string;
 }
 
-UTIL_SAFE_CAST_FUNCTION(slurm_driver, SLURM_DRIVER_TYPE_ID)
-static UTIL_SAFE_CAST_FUNCTION_CONST(slurm_driver, SLURM_DRIVER_TYPE_ID)
+UTIL_SAFE_CAST_FUNCTION(slurm_driver, SLURM_DRIVER_TYPE_ID);
+static UTIL_SAFE_CAST_FUNCTION_CONST(slurm_driver, SLURM_DRIVER_TYPE_ID);
 
-    void *slurm_driver_alloc() {
+void *slurm_driver_alloc() {
     slurm_driver_type *driver = new slurm_driver_type();
     UTIL_TYPE_ID_INIT(driver, SLURM_DRIVER_TYPE_ID);
     driver->sbatch_cmd = DEFAULT_SBATCH_CMD;

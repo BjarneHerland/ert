@@ -1,10 +1,12 @@
 import logging
 import asyncio
+import pickle
 from threading import Thread
+from concurrent import futures
 from PyQt5.QtWidgets import QAbstractItemView
 
-from ecl.util.util import BoolVector
 from ert_gui.ertwidgets import resourceMovie
+from ert_gui.ertwidgets.message_box import ErtMessageBox
 from ert_gui.model.job_list import JobListProxyModel
 from ert_gui.model.snapshot import RealIens, SnapshotModel, FileRole
 from ert_gui.simulation.tracker_worker import TrackerWorker
@@ -12,15 +14,16 @@ from ert_gui.tools.file import FileDialog
 from ert_gui.tools.plot.plot_tool import PlotTool
 from ert_shared.ensemble_evaluator.config import EvaluatorServerConfig
 from ert_shared.models import BaseRunModel
-from ert_shared.status.entity.event import (
+from ert.ensemble_evaluator import (
     EndEvent,
+    EvaluatorTracker,
     FullSnapshotEvent,
     SnapshotUpdateEvent,
 )
-from ert_shared.status.tracker.factory import create_tracker
 from ert_shared.status.utils import format_running_time
 from qtpy.QtCore import QModelIndex, QSize, Qt, QThread, QTimer, Signal, Slot
 from qtpy.QtWidgets import (
+    QApplication,
     QDialog,
     QHBoxLayout,
     QLabel,
@@ -33,17 +36,21 @@ from qtpy.QtWidgets import (
     QHeaderView,
     QProgressBar,
 )
+from ert.ensemble_evaluator.state import (
+    ENSEMBLE_STATE_FAILED,
+    ENSEMBLE_STATE_STOPPED,
+)
+from ert.ensemble_evaluator.identifiers import EVTYPE_EE_TERMINATED
 from ert_gui.simulation.view.progress import ProgressView
 from ert_gui.simulation.view.legend import LegendView
 from ert_gui.simulation.view.realization import RealizationWidget
 from ert_gui.model.progress_proxy import ProgressProxyModel
-from ert_shared.ensemble_evaluator.entity.identifiers import (
-    EVTYPE_EE_TERMINATED,
-)
-from ert_shared.status.entity.state import (
-    ENSEMBLE_STATE_STOPPED,
-    ENSEMBLE_STATE_FAILED,
-)
+from typing import Dict, TYPE_CHECKING, cast
+
+if TYPE_CHECKING:
+    from ert.data import RecordTransmitter
+    from ert3.evaluator._evaluator import ERT3RunModel
+    from ert_shared.ensemble_evaluator.evaluator import EnsembleEvaluator
 
 
 _TOTAL_PROGRESS_TEMPLATE = "Total progress {total_progress}% — {phase_name}"
@@ -59,7 +66,7 @@ class RunDialog(QDialog):
         self.setWindowFlags(self.windowFlags() & ~Qt.WindowContextHelpButtonHint)
         self.setModal(True)
         self.setWindowModality(Qt.WindowModal)
-        self.setWindowTitle("Simulations - {}".format(config_file))
+        self.setWindowTitle(f"Simulations - {config_file}")
 
         self._snapshot_model = SnapshotModel(self)
         self._run_model = run_model
@@ -115,22 +122,22 @@ class RunDialog(QDialog):
 
         self.running_time = QLabel("")
 
-        self.plot_tool = PlotTool(ert, config_file)
+        self.plot_tool = PlotTool(config_file)
         self.plot_tool.setParent(self)
         self.plot_button = QPushButton(self.plot_tool.getName())
         self.plot_button.clicked.connect(self.plot_tool.trigger)
         self.plot_button.setEnabled(ert is not None)
 
-        self.kill_button = QPushButton("Kill Simulations")
+        self.kill_button = QPushButton("Kill simulations")
         self.done_button = QPushButton("Done")
         self.done_button.setHidden(True)
         self.restart_button = QPushButton("Restart")
         self.restart_button.setHidden(True)
-        self.show_details_button = QPushButton("Show Details")
+        self.show_details_button = QPushButton("Show details")
         self.show_details_button.setCheckable(True)
 
         size = 20
-        spin_movie = resourceMovie("ide/loading.gif")
+        spin_movie = resourceMovie("loading.gif")
         spin_movie.setSpeed(60)
         spin_movie.setScaledSize(QSize(size, size))
         spin_movie.start()
@@ -186,14 +193,14 @@ class RunDialog(QDialog):
         self._tab_widget.setVisible(False)
         self._job_label.setVisible(False)
         self._job_view.setVisible(False)
-        self.show_details_button.setText("Show Details")
+        self.show_details_button.setText("Show details")
 
     def _setDetailedDialog(self) -> None:
         self._isDetailedDialog = True
         self._tab_widget.setVisible(True)
         self._job_label.setVisible(True)
         self._job_view.setVisible(True)
-        self.show_details_button.setText("Hide Details")
+        self.show_details_button.setText("Hide details")
 
     @Slot(QModelIndex, int, int)
     def on_new_iteration(self, parent: QModelIndex, start: int, end: int) -> None:
@@ -294,7 +301,7 @@ class RunDialog(QDialog):
 
         self._ticker.start(1000)
 
-        tracker = create_tracker(
+        tracker = EvaluatorTracker(
             self._run_model,
             ee_con_info=evaluator_server_config.get_connection_info(),
         )
@@ -309,6 +316,58 @@ class RunDialog(QDialog):
         self._worker_thread = worker_thread
         worker_thread.started.connect(worker.consume_and_emit)
         self._worker_thread.start()
+
+    def startSimulationErt3(
+        self, ensemble_evaluator: "EnsembleEvaluator"
+    ) -> futures.Future:
+        self._run_model.reset()
+        self._snapshot_model.reset()  # type: ignore
+        self._tab_widget.clear()
+
+        def run() -> Dict[int, Dict[str, "RecordTransmitter"]]:
+            result: Dict[int, Dict[str, "RecordTransmitter"]] = {}
+            with ensemble_evaluator.run() as monitor:
+                self._run_model.setPhase(
+                    0, "Running simulations...", indeterminate=False
+                )
+                for event in monitor.track():
+                    if isinstance(event.data, dict) and event.data.get("status") in [
+                        ENSEMBLE_STATE_STOPPED,
+                        ENSEMBLE_STATE_FAILED,
+                    ]:
+                        monitor.signal_done()
+                        if event.data.get("status") == ENSEMBLE_STATE_FAILED:
+                            self._run_model._failed = True
+                            self._run_model._fail_message = "Ensemble evaluation failed"
+                            raise RuntimeError("Ensemble evaluation failed")
+                    if event["type"] == EVTYPE_EE_TERMINATED and isinstance(
+                        event.data, bytes
+                    ):
+                        result = pickle.loads(event.data)
+                        self._run_model.setPhase(1, "Simulations completed.")
+            return result
+
+        executor = futures.ThreadPoolExecutor()
+        future = executor.submit(run)
+
+        self._ticker.start(1000)
+
+        tracker = EvaluatorTracker(
+            self._run_model,
+            ee_con_info=ensemble_evaluator.config.get_connection_info(),
+        )
+
+        worker = TrackerWorker(tracker)
+        worker_thread = QThread(parent=self)
+        worker.done.connect(worker_thread.quit)
+        worker.consumed_event.connect(self._on_tracker_event)
+        worker.moveToThread(worker_thread)
+        self.simulation_done.connect(worker.stop)
+        self._worker = worker
+        self._worker_thread = worker_thread
+        worker_thread.started.connect(worker.consume_and_emit)
+        self._worker_thread.start()
+        return future
 
     def killJobs(self):
 
@@ -339,11 +398,8 @@ class RunDialog(QDialog):
         )
 
         if failed:
-            QMessageBox.critical(
-                self,
-                "Simulations failed!",
-                f"The simulation failed with the following error:\n\n{failed_msg}",
-            )
+            msg = ErtMessageBox("ERT simulation failed!", failed_msg)
+            msg.exec_()
 
     @Slot()
     def _on_ticker(self):
@@ -388,9 +444,10 @@ class RunDialog(QDialog):
         msg = QMessageBox(self)
         msg.setIcon(QMessageBox.Information)
         msg.setText(
-            "Note that workflows will only be executed on the restarted realizations and that this might have unexpected consequences."
+            "Note that workflows will only be executed on the restarted "
+            "realizations and that this might have unexpected consequences."
         )
-        msg.setWindowTitle("Restart Failed Realizations")
+        msg.setWindowTitle("Restart failed realizations")
         msg.setStandardButtons(QMessageBox.Ok | QMessageBox.Cancel)
         result = msg.exec_()
 
@@ -409,3 +466,20 @@ class RunDialog(QDialog):
             self._setDetailedDialog()
 
         self.adjustSize()
+
+
+def run_monitoring_ert3(
+    ensemble_evaluator: "EnsembleEvaluator", run_model: "ERT3RunModel"
+) -> Dict[int, Dict[str, "RecordTransmitter"]]:
+    app = QApplication([])
+    dialog = RunDialog(
+        repr(ensemble_evaluator.ensemble),
+        run_model,
+    )  # type: ignore
+    # We don't do kill simulations in ert3 yet
+    dialog.kill_button.setHidden(True)
+    app.setActiveWindow(dialog)
+    dialog.show()
+    future = dialog.startSimulationErt3(ensemble_evaluator)
+    app.exec_()
+    return cast(Dict[int, Dict[str, "RecordTransmitter"]], future.result())

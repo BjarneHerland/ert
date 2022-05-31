@@ -125,8 +125,8 @@ class ResConfig(BaseCClass):
             super().__init__(c_ptr)
         else:
             raise ValueError(
-                "Failed to construct ResConfig instance from %r."
-                % (user_config_file if user_config_file else config)
+                "Failed to construct ResConfig instance "
+                f"from {repr(user_config_file) if user_config_file else repr(config)}."
             )
 
     def _assert_input(self, user_config_file, config, config_dict):
@@ -450,8 +450,8 @@ class ResConfig(BaseCClass):
                 raise KeyError(err_msg % (req_keys, gd))
 
             value = [gd[ConfigKeys.NAME]]
-            value += ["%s:%s" % (key, gd[key]) for key in req_keys[1:]]
-            value += ["%s:%s" % (key, val) for key, val in default_opt.items()]
+            value += [f"{key}:{gd[key]}" for key in req_keys[1:]]
+            value += [f"{key}:{val}" for key, val in default_opt.items()]
             gen_data_config.append((ConfigKeys.GEN_DATA, value))
 
         return gen_data_config
@@ -538,25 +538,25 @@ class ResConfig(BaseCClass):
         config_content.setParser(config_parser)
 
         # Insert defines
-        for key in defines:
-            config_content.add_define(key, defines[key])
+        for key, value in defines.items():
+            config_content.add_define(key, value)
 
         # Insert key values
         if not os.path.exists(config_dir):
-            raise IOError("The configuration directory: %s does not exist" % config_dir)
+            raise IOError(f"The configuration directory: {config_dir} does not exist")
 
         path_elm = config_content.create_path_elm(config_dir)
-        add_key_value = lambda key, value: config_parser.add_key_value(
-            config_content, key, StringList([key] + value), path_elm=path_elm
-        )
+
+        def add_key_value(key, value):
+            return config_parser.add_key_value(
+                config_content, key, StringList([key] + value), path_elm=path_elm
+            )
 
         for key, value in config_list:
             if isinstance(value, str):
                 value = [value]
             if not isinstance(value, list):
-                raise ValueError(
-                    "Expected value to be str or list, was %r" % (type(value))
-                )
+                raise ValueError(f"Expected value to be str or list, was {type(value)}")
 
             ok = add_key_value(key, value)
             if not ok:

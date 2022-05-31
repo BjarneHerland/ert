@@ -14,13 +14,12 @@
 #  See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
 #  for more details.
 from typing import List, Tuple, Dict, Any
-from res.enkf import ErtRunContext, EnkfSimulationRunner
+from res.enkf import ErtRunContext, EnkfSimulationRunner, ErtAnalysisError
 from res.enkf.enums import HookRuntime
 from res.enkf.enums import RealizationStateEnum
 from res.enkf.enkf_main import EnKFMain, QueueConfig
 
 from ert_shared.models import BaseRunModel, ErtRunError
-from ert_shared.models.types import Argument
 from ert_shared.ensemble_evaluator.config import EvaluatorServerConfig
 
 import logging
@@ -30,7 +29,7 @@ logger = logging.getLogger(__file__)
 
 class MultipleDataAssimilation(BaseRunModel):
     """
-    Run Multiple Data Assimilation (MDA) Ensemble Smoother with custom weights.
+    Run multiple data assimilation (MDA) ensemble smoother with custom weights.
     """
 
     default_weights = "4, 2, 1"
@@ -48,7 +47,7 @@ class MultipleDataAssimilation(BaseRunModel):
         module_load_success = self.ert().analysisConfig().selectModule(module_name)
 
         if not module_load_success:
-            raise ErtRunError("Unable to load analysis module '%s'!" % module_name)
+            raise ErtRunError(f"Unable to load analysis module '{module_name}'!")
 
     def runSimulations(
         self, evaluator_server_config: EvaluatorServerConfig
@@ -61,18 +60,18 @@ class MultipleDataAssimilation(BaseRunModel):
         self.setAnalysisModule(self._simulation_arguments["analysis_module"])
 
         logger.info(
-            "Running MDA ES for %s  iterations\t%s"
-            % (iteration_count, ", ".join(str(weight) for weight in weights))
+            f"Running MDA ES for {iteration_count}  "
+            f'iterations\t{", ".join(str(weight) for weight in weights)}'
         )
         weights = self.normalizeWeights(weights)
 
         weight_string = ", ".join(str(round(weight, 3)) for weight in weights)
-        logger.info("Running MDA ES on (weights normalized)\t%s" % weight_string)
+        logger.info(f"Running MDA ES on (weights normalized)\t{weight_string}")
 
         self.setPhaseCount(iteration_count + 1)  # weights + post
-        phase_string = "Running MDA ES %d iteration%s." % (
-            iteration_count,
-            ("s" if (iteration_count != 1) else ""),
+        phase_string = (
+            f"Running MDA ES {iteration_count} "
+            f'iteration{"s" if (iteration_count != 1) else ""}.'
         )
         self.setPhaseName(phase_string, indeterminate=True)
 
@@ -118,30 +117,26 @@ class MultipleDataAssimilation(BaseRunModel):
     def update(
         self, run_context: ErtRunContext, weight: float, ensemble_id: str
     ) -> str:
-        source_fs = run_context.get_sim_fs()
         next_iteration = run_context.get_iter() + 1
-        target_fs = run_context.get_target_fs()
 
-        phase_string = "Analyzing iteration: %d with weight %f" % (
-            next_iteration,
-            weight,
-        )
+        phase_string = f"Analyzing iteration: {next_iteration} with weight {weight}"
         self.setPhase(self.currentPhase() + 1, phase_string, indeterminate=True)
 
         es_update = self.ert().getESUpdate()
         es_update.setGlobalStdScaling(weight)
-        success = es_update.smootherUpdate(run_context)
-
+        try:
+            es_update.smootherUpdate(run_context)
+        except ErtAnalysisError as e:
+            raise ErtRunError(
+                "Analysis of simulation failed for iteration:"
+                f"{next_iteration}. The following error occured {e}"
+            ) from e
         # Push update data to new storage
         analysis_module_name = self.ert().analysisConfig().activeModuleName()
         update_id = self._post_update_data(
             parent_ensemble_id=ensemble_id, algorithm=analysis_module_name
         )
 
-        if not success:
-            raise UserWarning(
-                "Analysis of simulation failed for iteration: %d!" % next_iteration
-            )
         return update_id
 
     def _simulateAndPostProcess(
@@ -152,18 +147,18 @@ class MultipleDataAssimilation(BaseRunModel):
     ) -> Tuple[int, str]:
         iteration = run_context.get_iter()
 
-        phase_string = "Running simulation for iteration: %d" % iteration
+        phase_string = f"Running simulation for iteration: {iteration}"
         self.setPhaseName(phase_string, indeterminate=True)
         self.ert().getEnkfSimulationRunner().createRunPath(run_context)
 
-        phase_string = "Pre processing for iteration: %d" % iteration
+        phase_string = f"Pre processing for iteration: {iteration}"
         self.setPhaseName(phase_string)
         EnkfSimulationRunner.runWorkflows(HookRuntime.PRE_SIMULATION, ert=self.ert())
 
         # Push ensemble, parameters, observations to new storage
         new_ensemble_id = self._post_ensemble_data(update_id=update_id)
 
-        phase_string = "Running forecast for iteration: %d" % iteration
+        phase_string = f"Running forecast for iteration: {iteration}"
         self.setPhaseName(phase_string, indeterminate=False)
 
         num_successful_realizations = self.run_ensemble_evaluator(
@@ -178,7 +173,7 @@ class MultipleDataAssimilation(BaseRunModel):
         )
         self.checkHaveSufficientRealizations(num_successful_realizations)
 
-        phase_string = "Post processing for iteration: %d" % iteration
+        phase_string = f"Post processing for iteration: {iteration}"
         self.setPhaseName(phase_string, indeterminate=True)
         EnkfSimulationRunner.runWorkflows(HookRuntime.POST_SIMULATION, ert=self.ert())
 
@@ -186,12 +181,16 @@ class MultipleDataAssimilation(BaseRunModel):
 
     @staticmethod
     def normalizeWeights(weights: List[float]) -> List[float]:
+        """Scale weights such that their reciprocals sum to 1.0,
+        i.e., sum(1.0 / x for x in weights) == 1.0.
+        See for example Equation 38 of evensen2018 - Analysis of iterative
+        ensemble smoothers for solving inverse problems.
+        """
         if not weights:
             return []
         weights = [weight for weight in weights if abs(weight) != 0.0]
-        from math import sqrt
 
-        length = sqrt(sum((1.0 / x) * (1.0 / x) for x in weights))
+        length = sum(1.0 / x for x in weights)
         return [x * length for x in weights]
 
     @staticmethod
@@ -213,7 +212,7 @@ class MultipleDataAssimilation(BaseRunModel):
                 else:
                     result.append(f)
             except ValueError:
-                raise ValueError("Warning: cannot parse weight %s" % element)
+                raise ValueError(f"Warning: cannot parse weight {element}")
 
         return result
 
@@ -233,12 +232,10 @@ class MultipleDataAssimilation(BaseRunModel):
         source_case_name = target_case_format % itr
         if itr > 0 and not fs_manager.caseExists(source_case_name):
             raise ErtRunError(
-                "Source case {} for iteration {} does not exists. "
+                f"Source case {source_case_name} for iteration {itr} does not exists. "
                 "If you are attempting to restart ESMDA from a iteration other than 0, "
                 "make sure the target case format is the same as for the original run! "
-                "(Current target case format: {})".format(
-                    source_case_name, itr, target_case_format
-                )
+                f"(Current target case format: {target_case_format})"
             )
 
         sim_fs = fs_manager.getFileSystem(source_case_name)
@@ -250,14 +247,15 @@ class MultipleDataAssimilation(BaseRunModel):
         if initialize_mask_from_arguments:
             mask = self._simulation_arguments["active_realizations"]
         else:
-            state = (
+            mask = sim_fs.getStateMap().createMask(
                 RealizationStateEnum.STATE_HAS_DATA
                 | RealizationStateEnum.STATE_INITIALIZED
             )
-            mask = sim_fs.getStateMap().createMask(state)
             # Make sure to only run the realizations which was passed in as argument
-            for index, run_realization in enumerate(self._initial_realizations_mask):
-                mask[index] = mask[index] and run_realization
+            for idx, (valid_state, run_realization) in enumerate(
+                zip(mask, self._initial_realizations_mask)
+            ):
+                mask[idx] = valid_state and run_realization
 
         run_context = ErtRunContext.ensemble_smoother(
             sim_fs, target_fs, mask, runpath_fmt, jobname_fmt, subst_list, itr

@@ -1,4 +1,4 @@
-from qtpy.QtCore import QThread, Slot, Qt, QEvent
+from qtpy.QtCore import QThread, Slot, Qt
 from qtpy.QtWidgets import (
     QDialog,
     QMessageBox,
@@ -16,12 +16,11 @@ class FileDialog(QDialog):
     def __init__(
         self, file_name, job_name, job_number, realization, iteration, parent=None
     ):
-        super(FileDialog, self).__init__(parent)
+        super().__init__(parent)
 
         self.setWindowTitle(
-            "{} # {} Realization: {} Iteration: {}".format(
-                job_name, job_number, realization, iteration
-            )
+            f"{job_name} # {job_number} "
+            f"Realization: {realization} Iteration: {iteration}"
         )
 
         try:
@@ -68,7 +67,7 @@ class FileDialog(QDialog):
         dialog_buttons.accepted.connect(self.accept)
 
         self._copy_all_button = dialog_buttons.addButton(
-            "Copy All", QDialogButtonBox.ActionRole
+            "Copy all", QDialogButtonBox.ActionRole
         )
         self._copy_all_button.clicked.connect(self._copy_all)
 

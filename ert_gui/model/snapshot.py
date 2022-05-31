@@ -1,17 +1,17 @@
 import datetime
 import logging
 from contextlib import ExitStack
-from typing import List, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 from dateutil import tz
-
-import ert_shared.status.entity.state as state
 import pyrsistent
-from ert_gui.model.node import Node, NodeType
-from ert_shared.ensemble_evaluator.entity import identifiers as ids
-from ert_shared.ensemble_evaluator.entity.snapshot import PartialSnapshot, Snapshot
-from ert_shared.status.utils import byte_with_unit
+
 from qtpy.QtCore import QAbstractItemModel, QModelIndex, QSize, Qt, QVariant
 from qtpy.QtGui import QColor, QFont
+
+from ert_gui.model.node import Node, NodeType
+from ert.ensemble_evaluator import state, PartialSnapshot, Snapshot
+from ert.ensemble_evaluator import identifiers as ids
+from ert_shared.status.utils import byte_with_unit
 
 logger = logging.getLogger(__name__)
 
@@ -30,8 +30,8 @@ STEP_COLUMN_STATUS = "Status"
 STEP_COLUMN_DURATION = "Duration"
 STEP_COLUMN_STDOUT = "STDOUT"
 STEP_COLUMN_STDERR = "STDERR"
-STEP_COLUMN_CURRENT_MEMORY_USAGE = "Current Memory Usage"
-STEP_COLUMN_MAX_MEMORY_USAGE = "Max Memory Usage"
+STEP_COLUMN_CURRENT_MEMORY_USAGE = "Current memory usage"
+STEP_COLUMN_MAX_MEMORY_USAGE = "Max memory usage"
 
 SORTED_REALIZATION_IDS = "_sorted_real_ids"
 SORTED_JOB_IDS = "_sorted_job_ids"
@@ -40,7 +40,7 @@ REAL_STATUS_COLOR = "_real_status_colors"
 
 DURATION = "Duration"
 
-COLUMNS = {
+COLUMNS: Dict[NodeType, Sequence[Union[str, Tuple[str, str]]]] = {
     NodeType.ROOT: ["Name", "Status"],
     NodeType.ITER: ["Name", "Status", "Active"],
     NodeType.REAL: ["Name", "Status"],
@@ -82,21 +82,21 @@ def _estimate_duration(start_time, end_time=None):
 class SnapshotModel(QAbstractItemModel):
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
-        self.root = Node(None, {}, NodeType.ROOT)
+        self.root = Node(0, {}, NodeType.ROOT)
 
     @staticmethod
     def prerender(
         snapshot: Union[Snapshot, PartialSnapshot]
-    ) -> Union[Snapshot, PartialSnapshot]:
+    ) -> Optional[Union[Snapshot, PartialSnapshot]]:
         """Pre-render some data that is required by this model. Ideally, this
         is called outside the GUI thread. This is a requirement of the model,
         so it has to be called."""
 
         # If there are no realizations, there's nothing to prerender.
         if not snapshot.data().get(ids.REALS):
-            return
+            return None
 
-        metadata = {
+        metadata: Dict[str, Any] = {
             # A mapping from real to job to that job's QColor status representation
             REAL_JOB_STATUS_AGGREGATED: {},
             # A mapping from real to that real's QColor status representation
@@ -106,11 +106,17 @@ class SnapshotModel(QAbstractItemModel):
             metadata[SORTED_REALIZATION_IDS] = sorted(
                 snapshot.data()[ids.REALS].keys(), key=int
             )
+            metadata[SORTED_JOB_IDS] = {}
             for real_id, real in snapshot.data()[ids.REALS].items():
-                for step in real[ids.STEPS].values():
-                    metadata[SORTED_JOB_IDS] = sorted(step[ids.JOBS].keys(), key=int)
-                    break
-                break
+                metadata[SORTED_JOB_IDS][real_id] = {}
+                for step_id, step in real[ids.STEPS].items():
+                    indices = [
+                        (job.index, job_id) for job_id, job in step[ids.JOBS].items()
+                    ]
+                    metadata[SORTED_JOB_IDS][real_id][step_id] = [
+                        index[1]
+                        for index in sorted(indices, key=lambda indx: int(indx[0]))
+                    ]
 
         for real_id, real in snapshot.data()[ids.REALS].items():
             if real.get(ids.STATUS):
@@ -120,9 +126,9 @@ class SnapshotModel(QAbstractItemModel):
             metadata[REAL_JOB_STATUS_AGGREGATED][real_id] = {}
             if real.get(ids.STEPS):
                 for step in real[ids.STEPS].values():
-                    if not ids.JOBS in step:
+                    if ids.JOBS not in step:
                         continue
-                    for job_id in sorted(step[ids.JOBS].keys(), key=int):
+                    for job_id in step[ids.JOBS].keys():
                         status = step[ids.JOBS][job_id][ids.STATUS]
                         color = _QCOLORS[state.JOB_STATE_TO_COLOR[status]]
                         metadata[REAL_JOB_STATUS_AGGREGATED][real_id][job_id] = color
@@ -133,6 +139,7 @@ class SnapshotModel(QAbstractItemModel):
             snapshot.update_metadata(metadata)
         return snapshot
 
+    # pylint: disable=too-many-branches
     def _add_partial_snapshot(self, partial: PartialSnapshot, iter_: int):
         metadata = partial.data().get(ids.METADATA)
         if not metadata:
@@ -217,6 +224,8 @@ class SnapshotModel(QAbstractItemModel):
                             job_node.data[ids.STDOUT] = job[ids.STDOUT]
                         if job.get(ids.STDERR):
                             job_node.data[ids.STDERR] = job[ids.STDERR]
+                        if job.get(ids.INDEX):
+                            job_node.data[ids.INDEX] = job[ids.INDEX]
 
                         # Errors may be unset as the queue restarts the job
                         job_node.data[ids.ERROR] = (
@@ -260,7 +269,7 @@ class SnapshotModel(QAbstractItemModel):
             for step_id, step in real[ids.STEPS].items():
                 step_node = Node(step_id, {ids.STATUS: step[ids.STATUS]}, NodeType.STEP)
                 real_node.add_child(step_node)
-                for job_id in metadata[SORTED_JOB_IDS]:
+                for job_id in metadata[SORTED_JOB_IDS][real_id][step_id]:
                     job = step[ids.JOBS][job_id]
                     job_dict = dict(job)
                     job_dict[ids.DATA] = job.data
@@ -277,8 +286,7 @@ class SnapshotModel(QAbstractItemModel):
         parent = QModelIndex()
         next_iter = len(self.root.children)
         self.beginInsertRows(parent, next_iter, next_iter)
-        self.root.add_child(snapshot_tree)
-        self.root.children[iter_] = snapshot_tree
+        self.root.add_child(snapshot_tree, node_id=iter_)
         self.rowsInserted.emit(parent, snapshot_tree.row(), snapshot_tree.row())
 
     def columnCount(self, parent=QModelIndex()):
@@ -305,7 +313,8 @@ class SnapshotModel(QAbstractItemModel):
         child_item = index.internalPointer()
         if not hasattr(child_item, "parent"):
             raise ValueError(
-                f"index r{index.row()}/c{index.column()} pointed to parent-less item {child_item}"
+                f"index r{index.row()}/c{index.column()} pointed to parent-less item "
+                + f"{child_item}"
             )
         parentItem = child_item.parent
 
@@ -314,6 +323,7 @@ class SnapshotModel(QAbstractItemModel):
 
         return self.createIndex(parentItem.row(), 0, parentItem)
 
+    # pylint: disable=too-many-return-statements
     def data(self, index: QModelIndex, role=Qt.DisplayRole):
         if not index.isValid():
             return QVariant()
@@ -354,8 +364,10 @@ class SnapshotModel(QAbstractItemModel):
     def _real_data(self, index: QModelIndex, node: Node, role: int):
         if role == RealJobColorHint:
             colors: List[QColor] = []
-            for job_id in node.parent.data[SORTED_JOB_IDS]:
-                colors.append(node.data[REAL_JOB_STATUS_AGGREGATED][job_id])
+            assert node.parent  # mypy
+            for step_id in node.parent.data[SORTED_JOB_IDS][node.id]:
+                for job_id in node.parent.data[SORTED_JOB_IDS][node.id][step_id]:
+                    colors.append(node.data[REAL_JOB_STATUS_AGGREGATED][job_id])
             return colors
         elif role == RealLabelHint:
             return node.id
@@ -366,8 +378,11 @@ class SnapshotModel(QAbstractItemModel):
         else:
             return QVariant()
 
+    # pylint: disable=too-many-return-statements
     def _job_data(self, index: QModelIndex, node: Node, role: int):
         if role == Qt.BackgroundRole:
+            assert node.parent  # mypy
+            assert node.parent.parent  # mypy
             real = node.parent.parent
             return real.data[REAL_JOB_STATUS_AGGREGATED][node.id]
         if role == Qt.DisplayRole:
@@ -432,5 +447,5 @@ class SnapshotModel(QAbstractItemModel):
 
     def reset(self):
         self.modelAboutToBeReset.emit()
-        self.root = Node(None, {}, NodeType.ROOT)
+        self.root = Node(0, {}, NodeType.ROOT)
         self.modelReset.emit()

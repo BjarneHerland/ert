@@ -15,28 +15,27 @@
    for more details.
 */
 
-#include <string.h>
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include <unordered_map>
-#include <vector>
-#include <tuple>
 #include <future>
 #include <string>
+#include <tuple>
+#include <unordered_map>
+#include <vector>
 
-#include <ert/util/rng.h>
-#include <ert/util/vector.hpp>
-#include <ert/util/int_vector.h>
+#include <ert/python.hpp>
+#include <ert/res_util/path_fmt.hpp>
 #include <ert/util/bool_vector.h>
 #include <ert/util/hash.h>
-#include <ert/res_util/path_fmt.hpp>
-#include <ert/res_util/arg_pack.hpp>
+#include <ert/util/int_vector.h>
+#include <ert/util/rng.h>
 #include <ert/util/type_vector_functions.h>
+#include <ert/util/vector.hpp>
 
-#include <ert/res_util/subst_list.hpp>
-#include <ert/res_util/matrix.hpp>
 #include <ert/logging.hpp>
+#include <ert/res_util/subst_list.hpp>
 
 #include <ert/sched/history.hpp>
 
@@ -44,16 +43,18 @@
 #include <ert/analysis/enkf_linalg.hpp>
 #include <ert/analysis/update.hpp>
 
-#include <ert/enkf/enkf_types.hpp>
-#include <ert/enkf/enkf_config_node.hpp>
-#include <ert/enkf/obs_data.hpp>
-#include <ert/enkf/enkf_state.hpp>
-#include <ert/enkf/enkf_obs.hpp>
-#include <ert/enkf/enkf_main.hpp>
 #include <ert/enkf/enkf_analysis.hpp>
+#include <ert/enkf/enkf_config_node.hpp>
+#include <ert/enkf/enkf_main.hpp>
+#include <ert/enkf/enkf_obs.hpp>
+#include <ert/enkf/enkf_state.hpp>
+#include <ert/enkf/enkf_types.hpp>
 #include <ert/enkf/field.hpp>
+#include <ert/enkf/obs_data.hpp>
 
 #include <ert/concurrency.hpp>
+
+#include <ert/python.hpp>
 
 static auto logger = ert::get_logger("enkf");
 
@@ -92,8 +93,6 @@ struct enkf_main_struct {
     enkf_fs_type *dbase; /* The internalized information. */
 
     const res_config_type *res_config;
-    local_config_type
-        *local_config; /* Holding all the information about local analysis. */
     rng_manager_type *rng_manager;
     rng_type *shared_rng;
 
@@ -101,11 +100,9 @@ struct enkf_main_struct {
 
     enkf_state_type **ensemble; /* The ensemble ... */
     int ens_size;               /* The size of the ensemble */
-    bool verbose;
 };
 
 void enkf_main_init_internalization(enkf_main_type *);
-void enkf_main_update_local_updates(enkf_main_type *enkf_main);
 static void enkf_main_close_fs(enkf_main_type *enkf_main);
 static void enkf_main_init_fs(enkf_main_type *enkf_main);
 static void enkf_main_user_select_initial_fs(enkf_main_type *enkf_main);
@@ -117,10 +114,6 @@ UTIL_IS_INSTANCE_FUNCTION(enkf_main, ENKF_MAIN_ID)
 const analysis_config_type *
 enkf_main_get_analysis_config(const enkf_main_type *enkf_main) {
     return res_config_get_analysis_config(enkf_main->res_config);
-}
-
-const char *enkf_main_get_user_config_file(const enkf_main_type *enkf_main) {
-    return res_config_get_user_config_file(enkf_main->res_config);
 }
 
 const char *enkf_main_get_site_config_file(const enkf_main_type *enkf_main) {
@@ -148,10 +141,6 @@ subst_config_type *enkf_main_get_subst_config(const enkf_main_type *enkf_main) {
 
 subst_list_type *enkf_main_get_data_kw(const enkf_main_type *enkf_main) {
     return subst_config_get_subst_list(enkf_main_get_subst_config(enkf_main));
-}
-
-local_config_type *enkf_main_get_local_config(const enkf_main_type *enkf_main) {
-    return enkf_main->local_config;
 }
 
 model_config_type *enkf_main_get_model_config(const enkf_main_type *enkf_main) {
@@ -206,7 +195,6 @@ bool enkf_main_load_obs(enkf_main_type *enkf_main, const char *obs_config_file,
     enkf_obs_load(enkf_main->obs, obs_config_file,
                   analysis_config_get_std_cutoff(
                       enkf_main_get_analysis_config(enkf_main)));
-    enkf_main_update_local_updates(enkf_main);
     return true;
 }
 
@@ -229,8 +217,6 @@ void enkf_main_free(enkf_main_type *enkf_main) {
 
     enkf_main_free_ensemble(enkf_main);
     enkf_main_close_fs(enkf_main);
-
-    local_config_free(enkf_main->local_config);
 
     delete enkf_main;
 }
@@ -297,59 +283,6 @@ ert_run_context_type *enkf_main_alloc_ert_run_context_ENSEMBLE_EXPERIMENT(
 }
 
 /*
-   This function creates a local_config file corresponding to the
-   default 'ALL_ACTIVE' configuration.
-*/
-
-void enkf_main_create_all_active_config(const enkf_main_type *enkf_main) {
-    local_config_type *local_config = enkf_main->local_config;
-    local_config_clear(local_config);
-    {
-        local_updatestep_type *default_step =
-            local_config_get_updatestep(local_config);
-        LocalObsData *obsdata =
-            local_config_alloc_obsdata(local_config, "ALL_OBS");
-        local_ministep_type *ministep =
-            local_config_alloc_ministep(local_config, "ALL_ACTIVE");
-        if (!ministep)
-            throw std::logic_error(
-                "Failed to create initial ALL_ACTIVE ministep");
-
-        local_updatestep_add_ministep(default_step, ministep);
-
-        /* Adding all observation keys */
-        {
-            hash_iter_type *obs_iter = enkf_obs_alloc_iter(enkf_main->obs);
-            while (!hash_iter_is_complete(obs_iter)) {
-                const char *obs_key = hash_iter_get_next_key(obs_iter);
-                LocalObsDataNode node(obs_key);
-                obsdata->add_node(node);
-            }
-            local_ministep_add_obsdata(ministep, obsdata);
-            hash_iter_free(obs_iter);
-        }
-
-        /* Adding all node which can be updated. */
-        {
-            std::vector<std::string> keylist =
-                ensemble_config_keylist_from_var_type(
-                    enkf_main_get_ensemble_config(enkf_main), PARAMETER);
-            for (auto &key : keylist)
-                /*
-          Make sure the funny GEN_KW instance masquerading as
-          SCHEDULE_PREDICTION_FILE is not added to the soup.
-                */
-                if (key != "PRED")
-                    ministep->add_active_data(key.data());
-        }
-    }
-}
-
-void enkf_main_set_verbose(enkf_main_type *enkf_main, bool verbose) {
-    enkf_main->verbose = verbose;
-}
-
-/*
    There is NO tagging anymore - if the user wants tags - the user
    supplies the key __WITH__ tags.
 */
@@ -357,10 +290,6 @@ void enkf_main_add_data_kw(enkf_main_type *enkf_main, const char *key,
                            const char *value) {
     subst_config_add_subst_kw(enkf_main_get_subst_config(enkf_main), key,
                               value);
-}
-
-void enkf_main_clear_data_kw(enkf_main_type *enkf_main) {
-    subst_config_clear(enkf_main_get_subst_config(enkf_main));
 }
 
 static enkf_main_type *enkf_main_alloc_empty() {
@@ -372,9 +301,7 @@ static enkf_main_type *enkf_main_alloc_empty() {
     enkf_main->ens_size = 0;
     enkf_main->res_config = NULL;
     enkf_main->obs = NULL;
-    enkf_main->local_config = local_config_alloc();
 
-    enkf_main_set_verbose(enkf_main, false);
     enkf_main_init_fs(enkf_main);
 
     return enkf_main;
@@ -382,28 +309,6 @@ static enkf_main_type *enkf_main_alloc_empty() {
 
 runpath_list_type *enkf_main_get_runpath_list(const enkf_main_type *enkf_main) {
     return hook_manager_get_runpath_list(enkf_main_get_hook_manager(enkf_main));
-}
-
-runpath_list_type *
-enkf_main_alloc_runpath_list(const enkf_main_type *enkf_main) {
-    return runpath_list_alloc(hook_manager_get_runpath_list_file(
-        enkf_main_get_hook_manager(enkf_main)));
-}
-
-void enkf_main_add_node(enkf_main_type *enkf_main,
-                        enkf_config_node_type *enkf_config_node) {
-    for (int iens = 0; iens < enkf_main_get_ensemble_size(enkf_main); iens++) {
-
-        enkf_state_add_node(enkf_main->ensemble[iens],
-                            enkf_config_node_get_key(enkf_config_node),
-                            enkf_config_node);
-    }
-}
-
-const char *
-enkf_main_get_schedule_prediction_file(const enkf_main_type *enkf_main) {
-    return ecl_config_get_schedule_prediction_file(
-        enkf_main_get_ecl_config(enkf_main));
 }
 
 rng_config_type *enkf_main_get_rng_config(const enkf_main_type *enkf_main) {
@@ -418,14 +323,6 @@ void enkf_main_rng_init(enkf_main_type *enkf_main) {
     enkf_main->rng_manager =
         rng_config_alloc_rng_manager(enkf_main_get_rng_config(enkf_main));
     enkf_main->shared_rng = rng_manager_alloc_rng(enkf_main->rng_manager);
-}
-
-void enkf_main_update_local_updates(enkf_main_type *enkf_main) {
-    const enkf_obs_type *enkf_obs = enkf_main_get_obs(enkf_main);
-    if (enkf_obs_have_obs(enkf_obs)) {
-        /* First create the default ALL_ACTIVE configuration. */
-        enkf_main_create_all_active_config(enkf_main);
-    }
 }
 
 static void enkf_main_init_obs(enkf_main_type *enkf_main) {
@@ -443,7 +340,7 @@ static void enkf_main_add_ensemble_members(enkf_main_type *enkf_main) {
     const model_config_type *model_config =
         enkf_main_get_model_config(enkf_main);
     int num_realizations = model_config_get_num_realizations(model_config);
-    enkf_main_resize_ensemble(enkf_main, num_realizations);
+    enkf_main_increase_ensemble(enkf_main, num_realizations);
 }
 
 /*
@@ -469,12 +366,10 @@ static void enkf_main_add_ensemble_members(enkf_main_type *enkf_main) {
    is mainly to be able to test that the site config file is valid.
 */
 
-enkf_main_type *enkf_main_alloc(const res_config_type *res_config,
-                                bool verbose) {
+enkf_main_type *enkf_main_alloc(const res_config_type *res_config) {
     enkf_main_type *enkf_main = enkf_main_alloc_empty();
     enkf_main->res_config = res_config;
 
-    enkf_main_set_verbose(enkf_main, verbose);
     enkf_main_rng_init(enkf_main);
     enkf_main_user_select_initial_fs(enkf_main);
     enkf_main_init_obs(enkf_main);
@@ -589,78 +484,27 @@ int enkf_main_get_observation_count(const enkf_main_type *enkf_main,
 
 void enkf_main_install_SIGNALS(void) { util_install_signals(); }
 
-ert_templates_type *enkf_main_get_templates(enkf_main_type *enkf_main) {
-    return res_config_get_templates(enkf_main->res_config);
-}
-
 ert_workflow_list_type *enkf_main_get_workflow_list(enkf_main_type *enkf_main) {
     return res_config_get_workflow_list(enkf_main->res_config);
 }
 
-int enkf_main_load_from_forward_model_from_gui(enkf_main_type *enkf_main,
-                                               int iter,
-                                               bool_vector_type *iactive,
-                                               enkf_fs_type *fs) {
-    const int ens_size = enkf_main_get_ensemble_size(enkf_main);
-    stringlist_type **realizations_msg_list = (stringlist_type **)util_calloc(
-        ens_size, sizeof *realizations_msg_list); // CXX_CAST_ERROR
-    for (int iens = 0; iens < ens_size; ++iens)
-        realizations_msg_list[iens] = stringlist_alloc_new();
-
-    int loaded = enkf_main_load_from_forward_model_with_fs(
-        enkf_main, iter, iactive, realizations_msg_list, fs);
-
-    for (int iens = 0; iens < ens_size; ++iens)
-        stringlist_free(realizations_msg_list[iens]);
-
-    free(realizations_msg_list);
-    return loaded;
-}
-
-int enkf_main_load_from_forward_model(enkf_main_type *enkf_main, int iter,
-                                      bool_vector_type *iactive,
-                                      stringlist_type **realizations_msg_list) {
-    enkf_fs_type *fs = enkf_main_get_fs(enkf_main);
-    return enkf_main_load_from_forward_model_with_fs(enkf_main, iter, iactive,
-                                                     realizations_msg_list, fs);
-}
-
-int enkf_main_load_from_forward_model_with_fs(
-    enkf_main_type *enkf_main, int iter, bool_vector_type *iactive,
-    stringlist_type **realizations_msg_list, enkf_fs_type *fs) {
+int enkf_main_load_from_forward_model_with_fs(enkf_main_type *enkf_main,
+                                              int iter,
+                                              bool_vector_type *iactive,
+                                              enkf_fs_type *fs) {
     model_config_type *model_config = enkf_main_get_model_config(enkf_main);
     ert_run_context_type *run_context =
         ert_run_context_alloc_ENSEMBLE_EXPERIMENT(
             fs, iactive, model_config_get_runpath_fmt(model_config),
             model_config_get_jobname_fmt(model_config),
             enkf_main_get_data_kw(enkf_main), iter);
-    int loaded = enkf_main_load_from_run_context(enkf_main, run_context,
-                                                 realizations_msg_list, fs);
+    int loaded = enkf_main_load_from_run_context(enkf_main, run_context, fs);
     ert_run_context_free(run_context);
-    return loaded;
-}
-
-int enkf_main_load_from_run_context_from_gui(enkf_main_type *enkf_main,
-                                             ert_run_context_type *run_context,
-                                             enkf_fs_type *fs) {
-    auto const ens_size = enkf_main_get_ensemble_size(enkf_main);
-    stringlist_type **realizations_msg_list = (stringlist_type **)util_calloc(
-        ens_size, sizeof *realizations_msg_list); // CXX_CAST_ERROR
-    for (int iens = 0; iens < ens_size; ++iens)
-        realizations_msg_list[iens] = stringlist_alloc_new();
-
-    int loaded = enkf_main_load_from_run_context(enkf_main, run_context,
-                                                 realizations_msg_list, fs);
-
-    for (int iens = 0; iens < ens_size; ++iens)
-        stringlist_free(realizations_msg_list[iens]);
-    free(realizations_msg_list);
     return loaded;
 }
 
 int enkf_main_load_from_run_context(enkf_main_type *enkf_main,
                                     ert_run_context_type *run_context,
-                                    stringlist_type **realizations_msg_list,
                                     enkf_fs_type *fs) {
     auto const ens_size = enkf_main_get_ensemble_size(enkf_main);
     auto const *iactive = ert_run_context_get_iactive(run_context);
@@ -673,7 +517,7 @@ int enkf_main_load_from_run_context(enkf_main_type *enkf_main,
     // executing* threads. The number of instantiated and stored futures
     // will be equal to the number of active realizations.
     Semafoor concurrently_executing_threads(100);
-    std::vector<std::tuple<int, std::future<int>>> futures;
+    std::vector<std::tuple<int, std::future<fw_load_status>>> futures;
 
     for (int iens = 0; iens < ens_size; ++iens) {
         if (bool_vector_iget(iactive, iens)) {
@@ -694,11 +538,16 @@ int enkf_main_load_from_run_context(enkf_main_type *enkf_main,
 
                         state_map_update_undefined(state_map, realisation,
                                                    STATE_INITIALIZED);
-
-                        return enkf_state_load_from_forward_model(
-                            enkf_main_iget_state(enkf_main, realisation),
-                            ert_run_context_iget_arg(run_context, realisation),
-                            *realizations_msg_list);
+                        try {
+                            return enkf_state_load_from_forward_model(
+                                enkf_main_iget_state(enkf_main, realisation),
+                                ert_run_context_iget_arg(run_context,
+                                                         realisation));
+                        } catch (const std::invalid_argument) {
+                            state_map_iset(state_map, realisation,
+                                           STATE_LOAD_FAILURE);
+                            return LOAD_FAILURE;
+                        }
                     },
                     iens, std::ref(concurrently_executing_threads))));
         }
@@ -707,19 +556,13 @@ int enkf_main_load_from_run_context(enkf_main_type *enkf_main,
     int loaded = 0;
     for (auto &[iens, fut] : futures) {
         int result = fut.get();
-        if (result & LOAD_FAILURE) {
+        if (result == LOAD_SUCCESSFUL) {
+            loaded++;
+        } else if (result == LOAD_FAILURE) {
             logger->warning("Function {}: Realization {} load failure",
                             __func__, iens);
-        } else if (result & REPORT_STEP_INCOMPATIBLE) {
-            logger->warning("The timesteps in refcase and "
-                            "current simulation are "
-                            "not in accordance - something wrong with "
-                            "schedule file?");
-            logger->warning("Function {}: Realization {} report step "
-                            "incompatible",
-                            __func__, iens);
         } else
-            loaded++;
+            logger->error("Unknown load enum");
     }
     return loaded;
 }
@@ -802,6 +645,50 @@ queue_config_type *enkf_main_get_queue_config(enkf_main_type *enkf_main) {
 
 rng_manager_type *enkf_main_get_rng_manager(const enkf_main_type *enkf_main) {
     return enkf_main->rng_manager;
+}
+
+std::vector<std::string> get_observation_keys(py::object self) {
+    auto enkf_main = ert::from_cwrap<enkf_main_type>(self);
+    std::vector<std::string> observations;
+
+    hash_iter_type *obs_iter = enkf_obs_alloc_iter(enkf_main->obs);
+    while (!hash_iter_is_complete(obs_iter)) {
+        const char *obs_key = hash_iter_get_next_key(obs_iter);
+        observations.push_back(obs_key);
+    }
+    hash_iter_free(obs_iter);
+    return observations;
+}
+
+std::vector<std::string> get_parameter_keys(py::object self) {
+    auto enkf_main = ert::from_cwrap<enkf_main_type>(self);
+
+    std::vector<std::string> parameters;
+    std::vector<std::string> keylist = ensemble_config_keylist_from_var_type(
+        enkf_main_get_ensemble_config(enkf_main), PARAMETER);
+    for (auto &key : keylist)
+        /*
+          Make sure the funny GEN_KW instance masquerading as
+          SCHEDULE_PREDICTION_FILE is not added to the soup.
+                */
+        if (key != "PRED")
+            parameters.push_back(key);
+    return parameters;
+}
+
+RES_LIB_SUBMODULE("enkf_main", m) {
+    using namespace py::literals;
+    m.def("get_observation_keys", get_observation_keys);
+    m.def("get_parameter_keys", get_parameter_keys);
+    m.def(
+        "create_run_path",
+        [](py::object self, py::object run_context_py) {
+            auto enkf_main = ert::from_cwrap<enkf_main_type>(self);
+            auto run_context =
+                ert::from_cwrap<ert_run_context_type>(run_context_py);
+            return enkf_main_create_run_path(enkf_main, run_context);
+        },
+        py::arg("self"), py::arg("run_context"));
 }
 
 #include "enkf_main_ensemble.cpp"

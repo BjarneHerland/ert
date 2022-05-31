@@ -1,3 +1,4 @@
+from collections import defaultdict
 from typing import Dict, List, Mapping, Optional, Union, TYPE_CHECKING
 
 from ert_data.measured import MeasuredData
@@ -170,13 +171,31 @@ def create_observations(ert) -> List[Mapping[str, dict]]:
     return [obs for obs in grouped_obs.values()]
 
 
-def _extract_active_observations(ert) -> Mapping[str, list]:
-    update_step = ert.get_update_step()
-    if len(update_step) == 0:
-        return {}
+def _get_status(status):
+    return status == "ACTIVE"
 
-    ministep = update_step[-1]
-    return ministep.get_obs_active_list()
+
+def _extract_active_observations(ert) -> Mapping[str, list]:
+    update_step = ert.update_snapshots
+    if not update_step:
+        return {}
+    # We make way to many assumptions here
+    try:
+        last_snapshot = list(update_step.keys())[-1]
+        update_steps = update_step[last_snapshot].update_step_snapshots
+        global_update_step = update_steps["ALL_ACTIVE"]
+    except KeyError:
+        logger.error(
+            f"Failed to load global update_step snapshot, probably using "
+            f"update_steps, expected only ALL_ACTIVE, found: {update_steps.keys()}"
+        )
+        return {}
+    result = defaultdict(list)
+    for obs_name, status in zip(
+        global_update_step.obs_name, global_update_step.obs_status
+    ):
+        result[obs_name].append(_get_status(status))
+    return result
 
 
 def _create_observation_transformation(ert, db_observations) -> List[dict]:
@@ -185,7 +204,7 @@ def _create_observation_transformation(ert, db_observations) -> List[dict]:
         EnkfObservationImplementationType.SUMMARY_OBS
     )
     active_obs = _extract_active_observations(ert)
-    transformations: Dict = dict()
+    transformations: Dict = {}
     keys = [ert.get_observation_key(i) for i, _ in enumerate(observation_vectors)]
     data = MeasuredData(ert, keys, load_data=False)
     observations = data.data.loc[["OBS", "STD"]]
@@ -215,7 +234,8 @@ def _create_observation_transformation(ert, db_observations) -> List[dict]:
                 active=active_mask,
             )
     observation_ids = {obs["name"]: obs["id"] for obs in db_observations}
-    # Sorting by x_axis matches the transformation with the observation, mostly needed for grouped summary obs
+    # Sorting by x_axis matches the transformation with the observation, mostly
+    # needed for grouped summary obs
     for key, obs in transformations.items():
         x_axis, active, scale = (
             list(t)

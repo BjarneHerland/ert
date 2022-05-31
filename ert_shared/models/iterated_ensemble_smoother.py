@@ -1,14 +1,14 @@
 from typing import Optional, Dict, Any
 
-from res.enkf import ErtRunContext, EnkfSimulationRunner
+from res.enkf import ErtRunContext, EnkfSimulationRunner, ErtAnalysisError
 from res.enkf.enkf_fs import EnkfFs
 from res.enkf.enums import HookRuntime, RealizationStateEnum
 from res.enkf.enkf_main import EnKFMain, QueueConfig
 from res.analysis.analysis_module import AnalysisModule
 
 from ert_shared.models import BaseRunModel, ErtRunError
-from ert_shared.models.types import Argument
 from ert_shared.ensemble_evaluator.config import EvaluatorServerConfig
+from res._lib import ies
 
 
 class IteratedEnsembleSmoother(BaseRunModel):
@@ -20,12 +20,15 @@ class IteratedEnsembleSmoother(BaseRunModel):
     ):
         super().__init__(simulation_arguments, ert, queue_config, phase_count=2)
         self.support_restart = False
+        self._w_container = ies.ModuleData(
+            len(simulation_arguments["active_realizations"])
+        )
 
     def setAnalysisModule(self, module_name: str) -> AnalysisModule:
         module_load_success = self.ert().analysisConfig().selectModule(module_name)
 
         if not module_load_success:
-            raise ErtRunError("Unable to load analysis module '%s'!" % module_name)
+            raise ErtRunError(f"Unable to load analysis module '{module_name}'!")
 
         return self.ert().analysisConfig().getModule(module_name)
 
@@ -35,9 +38,9 @@ class IteratedEnsembleSmoother(BaseRunModel):
         evaluator_server_config: EvaluatorServerConfig,
         update_id: Optional[str] = None,
     ) -> str:
-        phase_msg = "Running iteration %d of %d simulation iterations..." % (
-            run_context.get_iter(),
-            self.phaseCount() - 1,
+        phase_msg = (
+            f"Running iteration {run_context.get_iter()} of "
+            f"{self.phaseCount() - 1} simulation iterations..."
         )
         self.setPhase(run_context.get_iter(), phase_msg, indeterminate=False)
 
@@ -65,24 +68,25 @@ class IteratedEnsembleSmoother(BaseRunModel):
         return target_fs
 
     def analyzeStep(self, run_context: ErtRunContext, ensemble_id: str) -> str:
-        target_fs = run_context.get_target_fs()
         self.setPhaseName("Analyzing...", indeterminate=True)
-        source_fs = self.ert().getEnkfFsManager().getCurrentFileSystem()
 
         self.setPhaseName("Pre processing update...", indeterminate=True)
         EnkfSimulationRunner.runWorkflows(HookRuntime.PRE_UPDATE, ert=self.ert())
         es_update = self.ert().getESUpdate()
 
-        success = es_update.smootherUpdate(run_context)
+        try:
+            es_update.smootherUpdate(run_context, self._w_container)
+            self._w_container.iteration_nr += 1
+        except ErtAnalysisError as e:
+            raise ErtRunError(
+                f"Analysis of simulation failed with the following error: {e}"
+            ) from e
 
         # Push update data to new storage
         analysis_module_name = self.ert().analysisConfig().activeModuleName()
         update_id = self._post_update_data(
             parent_ensemble_id=ensemble_id, algorithm=analysis_module_name
         )
-
-        if not success:
-            raise ErtRunError("Analysis of simulation failed!")
 
         self.setPhaseName("Post processing update...", indeterminate=True)
         EnkfSimulationRunner.runWorkflows(HookRuntime.POST_UPDATE, ert=self.ert())
@@ -117,8 +121,8 @@ class IteratedEnsembleSmoother(BaseRunModel):
             and num_retries < num_retries_per_iteration
         ):
             pre_analysis_iter_num = analysis_module.getInt("ITER")
-            # We run the PRE_FIRST_UPDATE hook here because the current_iter is explicitly available, versus
-            # in the run_context inside analyzeStep
+            # We run the PRE_FIRST_UPDATE hook here because the current_iter is
+            # explicitly available, versus in the run_context inside analyzeStep
             if current_iter == 0:
                 EnkfSimulationRunner.runWorkflows(
                     HookRuntime.PRE_FIRST_UPDATE, ert=self.ert()
@@ -148,8 +152,12 @@ class IteratedEnsembleSmoother(BaseRunModel):
             self.setPhase(phase_count, "Simulations completed.")
         else:
             raise ErtRunError(
-                "Iterated Ensemble Smoother stopped: maximum number of iteration retries (%d retries) reached for iteration %d"
-                % (num_retries_per_iteration, current_iter)
+                (
+                    "Iterated ensemble smoother stopped: "
+                    "maximum number of iteration retries "
+                    f"({num_retries_per_iteration} retries) reached "
+                    f"for iteration {current_iter}"
+                )
             )
 
         return run_context
@@ -171,8 +179,8 @@ class IteratedEnsembleSmoother(BaseRunModel):
         if prior_context is None:
             mask = self._simulation_arguments["active_realizations"]
         else:
-            state = (
-                RealizationStateEnum.STATE_HAS_DATA
+            state: RealizationStateEnum = (
+                RealizationStateEnum.STATE_HAS_DATA  # type: ignore
                 | RealizationStateEnum.STATE_INITIALIZED
             )
             mask = sim_fs.getStateMap().createMask(state)
@@ -192,4 +200,4 @@ class IteratedEnsembleSmoother(BaseRunModel):
 
     @classmethod
     def name(cls) -> str:
-        return "Iterated Ensemble Smoother"
+        return "Iterated ensemble smoother"

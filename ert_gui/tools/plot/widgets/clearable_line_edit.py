@@ -16,7 +16,7 @@ class ClearableLineEdit(QLineEdit):
         self._placeholder_active = False
 
         self._clear_button = QPushButton(self)
-        self._clear_button.setIcon(resourceIcon("remove_favorite.png"))
+        self._clear_button.setIcon(resourceIcon("remove_outlined.svg"))
         self._clear_button.setFlat(True)
         self._clear_button.setFocusPolicy(Qt.NoFocus)
         self._clear_button.setFixedSize(17, 17)
@@ -47,7 +47,7 @@ class ClearableLineEdit(QLineEdit):
         frame_width = self.style().pixelMetric(QStyle.PM_DefaultFrameWidth)
         self._clear_button.move(
             right - frame_width - self._clear_button.width(),
-            (self.height() - self._clear_button.height()) / 2,
+            int((self.height() - self._clear_button.height()) / 2),
         )
         QLineEdit.resizeEvent(self, event)
 

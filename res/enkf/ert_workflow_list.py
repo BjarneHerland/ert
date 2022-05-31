@@ -58,7 +58,8 @@ class ErtWorkflowList(BaseCClass):
 
         if config_content is not None and config_dict is not None:
             raise ValueError(
-                "Failed to construct ErtWorkflowList instance with multiple config object"
+                "Failed to construct ErtWorkflowList "
+                "instance with multiple config object"
             )
 
         c_ptr = None
@@ -77,11 +78,7 @@ class ErtWorkflowList(BaseCClass):
                         parser=parser,
                     )
                 except OSError:
-                    print(
-                        "WARNING: Unable to create job from {}".format(
-                            job[ConfigKeys.PATH]
-                        )
-                    )
+                    print(f"WARNING: Unable to create job from {job[ConfigKeys.PATH]}")
                     continue
                 if new_job is not None:
                     workflow_joblist.addJob(new_job)
@@ -89,7 +86,7 @@ class ErtWorkflowList(BaseCClass):
 
             for job_path in config_dict.get(ConfigKeys.WORKFLOW_JOB_DIRECTORY, []):
                 if not os.path.isdir(job_path):
-                    print("WARNING: Unable to open job directory {}".format(job_path))
+                    print(f"WARNING: Unable to open job directory {job_path}")
                     continue
 
                 files = os.listdir(job_path)
@@ -102,7 +99,7 @@ class ErtWorkflowList(BaseCClass):
                         workflow_joblist.addJob(new_job)
                         new_job.convertToCReference(None)
                     except OSError:
-                        print("WARNING: Unable to create job from {}".format(full_path))
+                        print(f"WARNING: Unable to create job from {full_path}")
                         continue
 
             workflow_joblist.convertToCReference(None)
@@ -129,9 +126,7 @@ class ErtWorkflowList(BaseCClass):
     def __getitem__(self, item) -> Workflow:
         """@rtype: Workflow"""
         if item not in self:
-            raise KeyError(
-                "Item '%s' is not in the list of available workflows." % item
-            )
+            raise KeyError(f"Item '{item}' is not in the list of available workflows.")
 
         return self._get_workflow(item).setParent(self)
 
@@ -140,7 +135,7 @@ class ErtWorkflowList(BaseCClass):
         return self._get_context()
 
     def __str__(self):
-        return "ErtWorkflowList with jobs: %s" + str(self.getJobNames())
+        return f"ErtWorkflowList with jobs: {self.getJobNames()}"
 
     def addWorkflow(self, wf_name, wf_path):
         self._add_workflow(wf_name, wf_path).setParent(self)

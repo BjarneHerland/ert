@@ -16,13 +16,13 @@
    for more details.
 */
 
-#include <sys/types.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
-#include <ert/util/type_macros.h>
 #include <ert/res_util/path_fmt.hpp>
-#include <ert/util/hash.h>
 #include <ert/util/bool_vector.h>
+#include <ert/util/hash.h>
+#include <ert/util/type_macros.h>
 
 #include <ert/sched/history.hpp>
 
@@ -32,14 +32,14 @@
 
 #include <ert/logging.hpp>
 
-#include <ert/enkf/model_config.hpp>
-#include <ert/enkf/enkf_defaults.hpp>
-#include <ert/enkf/config_keys.hpp>
-#include <ert/enkf/ert_workflow_list.hpp>
 #include <ert/enkf/analysis_config.hpp>
+#include <ert/enkf/config_keys.hpp>
+#include <ert/enkf/enkf_defaults.hpp>
 #include <ert/enkf/ensemble_config.hpp>
-#include <ert/enkf/rng_config.hpp>
+#include <ert/enkf/ert_workflow_list.hpp>
 #include <ert/enkf/hook_manager.hpp>
+#include <ert/enkf/model_config.hpp>
+#include <ert/enkf/rng_config.hpp>
 #include <ert/enkf/site_config.hpp>
 
 static auto logger = ert::get_logger("enkf");
@@ -253,7 +253,7 @@ void model_config_set_max_internal_submit(model_config_type *model_config,
     model_config->max_internal_submit = max_resample;
 }
 
-UTIL_IS_INSTANCE_FUNCTION(model_config, MODEL_CONFIG_TYPE_ID)
+UTIL_IS_INSTANCE_FUNCTION(model_config, MODEL_CONFIG_TYPE_ID);
 
 model_config_type *model_config_alloc_empty() {
     model_config_type *model_config =
@@ -497,8 +497,9 @@ void model_config_init(model_config_type *model_config,
   */
 
     if (config_content_has_item(config, ENSPATH_KEY))
-        model_config_set_enspath(model_config, config_content_get_value_as_path(
-                                                   config, ENSPATH_KEY));
+        model_config_set_enspath(
+            model_config,
+            config_content_get_value_as_abspath(config, ENSPATH_KEY));
 
     if (config_content_has_item(config, DATA_ROOT_KEY))
         model_config_set_data_root(
@@ -787,18 +788,4 @@ config_content_type *model_config_alloc_content(const char *user_config_file,
     }
 
     return content;
-}
-
-bool model_config_report_step_compatible(
-    const model_config_type *model_config,
-    const ecl_sum_type *ecl_sum_simulated) {
-    bool ret = true;
-    const ecl_sum_type *ecl_sum_reference =
-        model_config_get_refcase(model_config);
-
-    if (ecl_sum_reference) //Can be NULL
-        ret = ecl_sum_report_step_compatible(ecl_sum_reference,
-                                             ecl_sum_simulated);
-
-    return ret;
 }

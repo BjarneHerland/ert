@@ -1,4 +1,3 @@
-import sys
 from unittest.mock import Mock, patch
 
 from ert_utils import ErtTest
@@ -6,6 +5,8 @@ from qtpy.QtGui import QIcon
 
 from ert_gui.ertwidgets.closabledialog import ClosableDialog
 from ert_gui.tools import run_analysis
+
+from res.enkf import ErtAnalysisError
 
 
 # Mocks are all instances and can never fool type checking, like in QAction's
@@ -32,7 +33,7 @@ class RunAnalysisTests(ErtTest):
         self.tool._run_widget.reset_mock()
         self.tool._dialog.reset_mock()
 
-    @patch("ert_gui.tools.run_analysis.run_analysis_tool.analyse", return_value=True)
+    @patch("ert_gui.tools.run_analysis.run_analysis_tool.analyse", return_value=None)
     @patch("ert_gui.tools.run_analysis.run_analysis_tool.QMessageBox")
     def test_show_dialogue_at_success(self, mock_messagebox, mock_analyse):
         self.tool._run_widget.source_case.return_value = "source"
@@ -48,7 +49,10 @@ class RunAnalysisTests(ErtTest):
         )
         self.tool._dialog.accept.assert_called_once_with()
 
-    @patch("ert_gui.tools.run_analysis.run_analysis_tool.analyse", return_value=False)
+    @patch(
+        "ert_gui.tools.run_analysis.run_analysis_tool.analyse",
+        side_effect=ErtAnalysisError("some error"),
+    )
     @patch("ert_gui.tools.run_analysis.run_analysis_tool.QMessageBox")
     def test_show_dialogue_at_failure(self, mock_messagebox, mock_analyse):
         self.tool._run_widget.source_case.return_value = "source"
@@ -59,6 +63,7 @@ class RunAnalysisTests(ErtTest):
 
         mock_analyse.assert_called_once_with(ert_mock, "target", "source")
         mock_messagebox.return_value.setText.assert_called_once_with(
-            "Unable to run analysis for case 'source'."
+            "Unable to run analysis for case 'source'.\n"
+            "The following error occured: some error"
         )
         self.tool._dialog.accept.assert_not_called()

@@ -1,0 +1,73 @@
+import pytest
+from performance_utils import make_poly_template
+from argparse import ArgumentParser
+from ert_shared.cli import ENSEMBLE_EXPERIMENT_MODE
+from ert_shared.cli.main import run_cli
+from ert_shared.main import ert_parser
+from pytest import fixture
+import py
+
+
+def make_case(reals, x_size, marks):
+    return {
+        "gen_data_count": 2,
+        "gen_data_entries": x_size,
+        "summary_data_entries": x_size,
+        "reals": reals,
+        "summary_data_count": 2,
+        "sum_obs_count": 1,
+        "gen_obs_count": 1,
+        "sum_obs_every": 2,
+        "gen_obs_every": 2,
+        "parameter_entries": 3,
+        "parameter_count": 1,
+        "update_steps": 1,
+        "marks": marks,
+    }
+
+
+cases_to_run = [
+    make_case(reals=10, x_size=20, marks=pytest.mark.quick_only),
+    make_case(reals=100, x_size=2000, marks=pytest.mark.slow),
+    make_case(reals=1000, x_size=2000, marks=pytest.mark.slow),
+]
+
+
+@fixture(
+    scope="session",
+    params=[
+        pytest.param(
+            params,
+            marks=params["marks"],
+        )
+        for params in cases_to_run
+    ],
+    ids=[
+        f"gen_x: {params['gen_data_entries']}, "
+        f"sum_x: {params['summary_data_entries']} "
+        f"reals: {params['reals']}"
+        for params in cases_to_run
+    ],
+)
+def template_config(request, source_root, tmp_path_factory):
+    tmpdir = py.path.local(tmp_path_factory.mktemp("my_poly_tmp"))
+    params = request.param
+    params.update()
+
+    poly_folder = make_poly_template(tmpdir, source_root, **params)
+    params["folder"] = poly_folder
+
+    with poly_folder.as_cwd():
+        parser = ArgumentParser(prog="test_main")
+        parsed = ert_parser(
+            parser,
+            [
+                ENSEMBLE_EXPERIMENT_MODE,
+                "poly.ert",
+                "--port-range",
+                "1024-65535",
+            ],
+        )
+        run_cli(parsed)
+
+    yield params

@@ -20,20 +20,21 @@ from ert_shared.libres_facade import LibresFacade
 
 class AddRemoveWidget(QWidget):
     """
-    A simple class that provides to vertically positioned buttons for adding and removing something.
-    The addFunction and removeFunction functions must be provided.
+    A simple class that provides to vertically positioned buttons for adding and
+    removing something.  The addFunction and removeFunction functions must be
+    provided.
     """
 
     def __init__(self, addFunction=None, removeFunction=None, horizontal=False):
         QWidget.__init__(self)
 
         self.addButton = QToolButton(self)
-        self.addButton.setIcon(resourceIcon("add"))
+        self.addButton.setIcon(resourceIcon("add_circle_outlined.svg"))
         self.addButton.setIconSize(QSize(16, 16))
         self.addButton.clicked.connect(addFunction)
 
         self.removeButton = QToolButton(self)
-        self.removeButton.setIcon(resourceIcon("remove"))
+        self.removeButton.setIcon(resourceIcon("remove_outlined.svg"))
         self.removeButton.setIconSize(QSize(16, 16))
         self.removeButton.clicked.connect(removeFunction)
 
@@ -82,7 +83,7 @@ class CaseList(QWidget):
         self._default_selection_mode = self._list.selectionMode()
         self.setSelectable(False)
 
-        layout.addWidget(QLabel("Available Cases:"))
+        layout.addWidget(QLabel("Available cases:"))
         layout.addWidget(self._list)
 
         self._addRemoveWidget = AddRemoveWidget(

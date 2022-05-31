@@ -20,9 +20,9 @@
 #include <vector>
 
 #include <math.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 #include <ert/python.hpp>
 
@@ -63,21 +63,19 @@ namespace {
 auto logger = ert::get_logger("ies");
 } // namespace
 
-void ies::init_update(ies::data::Data &module_data,
-                      const std::vector<bool> &ens_mask,
+void ies::init_update(ies::Data &module_data, const std::vector<bool> &ens_mask,
                       const std::vector<bool> &obs_mask) {
     module_data.update_ens_mask(ens_mask);
     module_data.store_initial_obs_mask(obs_mask);
     module_data.update_obs_mask(obs_mask);
 }
 
-Eigen::MatrixXd ies::makeX(const Eigen::MatrixXd &A, const Eigen::MatrixXd &Y0,
-                           const Eigen::MatrixXd &R, const Eigen::MatrixXd &E,
-                           const Eigen::MatrixXd &D,
-                           const ies::config::inversion_type ies_inversion,
-                           const std::variant<double, int> &truncation,
-                           bool use_aa_projection, Eigen::MatrixXd &W0,
-                           double ies_steplength, int iteration_nr)
+Eigen::MatrixXd
+ies::makeX(const Eigen::MatrixXd &A, const Eigen::MatrixXd &Y0,
+           const Eigen::MatrixXd &R, const Eigen::MatrixXd &E,
+           const Eigen::MatrixXd &D, const ies::inversion_type ies_inversion,
+           const std::variant<double, int> &truncation, Eigen::MatrixXd &W0,
+           double ies_steplength, int iteration_nr)
 
 {
     const int ens_size = Y0.cols();
@@ -93,7 +91,7 @@ Eigen::MatrixXd ies::makeX(const Eigen::MatrixXd &A, const Eigen::MatrixXd &Y0,
     /* COMPUTING THE PROJECTION Y= Y * (Ai^+ * Ai) (only used when state_size < ens_size-1) */
     if (A.rows() > 0 && A.cols() > 0) {
         const int state_size = A.rows();
-        if (use_aa_projection && (state_size <= (ens_size - 1))) {
+        if (state_size <= ens_size - 1) {
             ies::linalg_compute_AA_projection(A, Y);
         }
     }
@@ -141,10 +139,10 @@ Eigen::MatrixXd ies::makeX(const Eigen::MatrixXd &A, const Eigen::MatrixXd &Y0,
      * ies_inversion=IES_INVERSION_SUBSPACE_RE(3)      -> subspace inversion from (a) with R represented by E
      */
 
-    if (ies_inversion != ies::config::IES_INVERSION_EXACT) {
+    if (ies_inversion != ies::IES_INVERSION_EXACT) {
         ies::linalg_subspace_inversion(W0, ies_inversion, E, R, S, H,
                                        truncation, ies_steplength);
-    } else if (ies_inversion == ies::config::IES_INVERSION_EXACT) {
+    } else if (ies_inversion == ies::IES_INVERSION_EXACT) {
         ies::linalg_exact_inversion(W0, ies_inversion, S, H, ies_steplength);
     }
 
@@ -171,25 +169,26 @@ Eigen::MatrixXd ies::makeX(const Eigen::MatrixXd &A, const Eigen::MatrixXd &Y0,
     return X;
 }
 
-void ies::updateA(
-    const config::Config &ies_config, data::Data &data,
-    Eigen::MatrixXd &A,         // Updated ensemble A retured to ERT.
-    const Eigen::MatrixXd &Yin, // Ensemble of predicted measurements
-    const Eigen::MatrixXd
-        &Rin, // Measurement error covariance matrix (not used)
-    const Eigen::MatrixXd &Ein, // Ensemble of observation perturbations
-    const Eigen::MatrixXd
-        &Din) { // (d+E-Y) Ensemble of perturbed observations - Y
+void ies::updateA(Data &data,
+                  // Updated ensemble A retured to ERT.
+                  Eigen::Ref<Eigen::MatrixXd> A,
+                  // Ensemble of predicted measurements
+                  const Eigen::MatrixXd &Yin,
+                  // Measurement error covariance matrix (not used)
+                  const Eigen::MatrixXd &Rin,
+                  // Ensemble of observation perturbations
+                  const Eigen::MatrixXd &Ein,
+                  // (d+E-Y) Ensemble of perturbed observations - Y
+                  const Eigen::MatrixXd &Din,
+                  const ies::inversion_type ies_inversion,
+                  const std::variant<double, int> &truncation,
+                  double ies_steplength) {
 
-    int ens_size =
-        Yin.cols(); // Number of active realizations in current iteration
+    // Number of active realizations in current iteration
+    int ens_size = Yin.cols();
     int state_size = A.rows();
 
-    int iteration_nr = data.inc_iteration_nr();
-
-    const double ies_steplength = ies_config.steplength(iteration_nr);
-
-    data.update_state_size(state_size);
+    int iteration_nr = data.iteration_nr;
     /*
       Counting number of active observations for current iteration. If the
       observations have been used in previous iterations they are contained in
@@ -217,10 +216,11 @@ void ies::updateA(
     double costf;
 
     auto W0 = data.make_activeW();
-    Eigen::MatrixXd X =
-        makeX(ies_config.aaprojection() ? A : Eigen::MatrixXd(), Yin, Rin, E, D,
-              ies_config.inversion(), ies_config.truncation(),
-              ies_config.aaprojection(), W0, ies_steplength, iteration_nr);
+    Eigen::MatrixXd X;
+
+    X = makeX(A, Yin, Rin, E, D, ies_inversion, truncation, W0, ies_steplength,
+              iteration_nr);
+
     ies::linalg_store_active_W(&data, W0);
 
     /* COMPUTE NEW ENSEMBLE SOLUTION FOR CURRENT ITERATION  Ei=A0*X (Line 11)*/
@@ -280,19 +280,19 @@ void ies::linalg_subspace_inversion(
         nrobs, std::min(ens_size, nrobs)); // Used in subspace inversion
     Eigen::VectorXd eig(ens_size);
 
-    if (ies_inversion == config::IES_INVERSION_SUBSPACE_RE) {
+    if (ies_inversion == IES_INVERSION_SUBSPACE_RE) {
         Eigen::MatrixXd scaledE = E;
         scaledE *= nsc;
         enkf_linalg_lowrankE(S, scaledE, X1, eig, truncation);
 
-    } else if (ies_inversion == config::IES_INVERSION_SUBSPACE_EE_R) {
+    } else if (ies_inversion == IES_INVERSION_SUBSPACE_EE_R) {
         Eigen::MatrixXd Et = E.transpose();
         MatrixXd Cee = E * Et;
         Cee *= 1.0 / ((ens_size - 1) * (ens_size - 1));
 
         enkf_linalg_lowrankCinv(S, Cee, X1, eig, truncation);
 
-    } else if (ies_inversion == config::IES_INVERSION_SUBSPACE_EXACT_R) {
+    } else if (ies_inversion == IES_INVERSION_SUBSPACE_EXACT_R) {
         Eigen::MatrixXd scaledR = R;
         scaledR *= nsc * nsc;
         enkf_linalg_lowrankCinv(S, scaledR, X1, eig, truncation);
@@ -339,8 +339,7 @@ void ies::linalg_exact_inversion(Eigen::MatrixXd &W0, const int ies_inversion,
 * the updated W is stored for each iteration in data->W. If we have lost realizations we copy only the active rows and cols from
 * W0 to data->W which is then used in the algorithm.  (note the definition of the pointer dataW to data->W)
 */
-void ies::linalg_store_active_W(ies::data::Data *data,
-                                const Eigen::MatrixXd &W0) {
+void ies::linalg_store_active_W(ies::Data *data, const Eigen::MatrixXd &W0) {
     int ens_size_msk = data->ens_mask_size();
     int i = 0;
     int j;
@@ -394,14 +393,14 @@ Eigen::MatrixXd ies::makeD(const Eigen::VectorXd &obs_values,
 RES_LIB_SUBMODULE("ies", m) {
     m.def("make_X", ies::makeX, py::arg("A"), py::arg("Y0"), py::arg("R"),
           py::arg("E"), py::arg("D"), py::arg("ies_inversion"),
-          py::arg("truncation"), py::arg("use_aa_projection"), py::arg("W0"),
-          py::arg("ies_steplength"), py::arg("iteration_nr"));
+          py::arg("truncation"), py::arg("W0"), py::arg("ies_steplength"),
+          py::arg("iteration_nr"));
     m.def("make_E", ies::makeE, py::arg("obs_errors"), py::arg("noise"));
     m.def("make_D", ies::makeD, py::arg("obs_values"), py::arg("E"),
           py::arg("S"));
-    m.def("update_A", ies::updateA, py::arg("ies_config"), py::arg("data"),
-          py::arg("A"), py::arg("Yin"), py::arg("R"), py::arg("E"),
-          py::arg("D"));
+    m.def("update_A", ies::updateA, py::arg("data"), py::arg("A"),
+          py::arg("Yin"), py::arg("R"), py::arg("E"), py::arg("D"),
+          py::arg("inversion"), py::arg("truncation"), py::arg("step_length"));
     m.def("init_update", ies::init_update, py::arg("module_data"),
           py::arg("ens_mask"), py::arg("obs_mask"));
 }

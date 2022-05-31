@@ -5,16 +5,14 @@ from pandas import DataFrame
 from .observations import plotObservations
 from .plot_tools import PlotTools
 from ert_gui.plottery.plots.history import plotHistory
-from ert_gui.plottery.plots.refcase import plotRefcase
 
 
-class StatisticsPlot(object):
+class StatisticsPlot:
     def __init__(self):
         self.dimensionality = 2
 
     def plot(self, figure, plot_context, case_to_data_map, _observation_data):
         """@type plot_context: ert_gui.plottery.PlotContext"""
-        key = plot_context.key()
         config = plot_context.plotConfig()
         """:type: ert_gui.plotter.PlotConfig """
         axes = figure.add_subplot(111)
@@ -26,7 +24,7 @@ class StatisticsPlot(object):
         for case, data in case_to_data_map.items():
             data = data.T
             if not data.empty:
-                if not data.index.is_all_dates:
+                if data.index.inferred_type != "datetime64":
                     plot_context.deactivateDateSupport()
                     plot_context.x_axis = plot_context.INDEX_AXIS
 
@@ -56,7 +54,6 @@ class StatisticsPlot(object):
 
         _addStatisticsLegends(plot_config=config)
 
-        plotRefcase(plot_context, axes)
         plotObservations(_observation_data, plot_context, axes)
         plotHistory(plot_context, axes)
 

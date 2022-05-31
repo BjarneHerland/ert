@@ -1,6 +1,5 @@
 import os
 
-from ecl.util.util import BoolVector
 from libres_utils import ResTest, tmpdir
 
 from res.enkf import ErtRunContext
@@ -22,7 +21,7 @@ def render_dynamic_values(s, itr, iens, geo_id):
 
 class RunpathListDumpTest(ResTest):
     def setUp(self):
-        self.config_rel_path = "local/snake_oil_no_data/snake_oil_GEO_ID.ert"
+        self.config_rel_path = "local/snake_oil/snake_oil.ert"
         self.config_path = self.createTestPath(self.config_rel_path)
 
     def _verify_runpath_rendering(self, itr):
@@ -34,10 +33,13 @@ class RunpathListDumpTest(ResTest):
             sim_fs = fs_manager.getFileSystem("sim_fs")
 
             num_realizations = 25
-            mask = BoolVector(initial_size=num_realizations, default_value=True)
+            mask = [True] * num_realizations
             mask[13] = False
 
-            runpath_fmt = "simulations/<GEO_ID>/realization-%d/iter-%d/magic-real-<IENS>/magic-iter-<ITER>"
+            runpath_fmt = (
+                "simulations/<GEO_ID>/realization-%d/iter-%d/"
+                "magic-real-<IENS>/magic-iter-<ITER>"
+            )
             jobname_fmt = "SNAKE_OIL_%d"
 
             subst_list = res.resConfig().subst_config.subst_list
@@ -51,13 +53,13 @@ class RunpathListDumpTest(ResTest):
                 if mask[i]:
                     run_arg.geo_id = 10 * i
 
-            res.createRunpath(run_context)
+            res.getEnkfSimulationRunner().createRunPath(run_context)
 
             for i, run_arg in enumerate(run_context):
                 if not mask[i]:
                     continue
 
-                self.assertTrue(os.path.isdir("simulations/%d" % run_arg.geo_id))
+                self.assertTrue(os.path.isdir(f"simulations/{run_arg.geo_id}"))
 
             runpath_list_path = ".ert_runpath_list"
             self.assertTrue(os.path.isfile(runpath_list_path))

@@ -10,12 +10,12 @@ class IntegerArgument(ArgumentDefinition):
     pattern = re.compile("^-?[0-9]+$")
 
     def __init__(self, from_value=None, to_value=None, **kwargs):
-        super(IntegerArgument, self).__init__(**kwargs)
+        super().__init__(**kwargs)
         self.from_value = from_value
         self.to_value = to_value
 
     def validate(self, token):
-        validation_status = super(IntegerArgument, self).validate(token)
+        validation_status = super().validate(token)
 
         match = IntegerArgument.pattern.match(token)
 
@@ -31,25 +31,21 @@ class IntegerArgument(ArgumentDefinition):
                 and not self.from_value <= value <= self.to_value
             ):
                 validation_status.setFailed()
-                range_string = "%d <= %d <= %d" % (
-                    self.from_value,
-                    value,
-                    self.to_value,
-                )
+                range_string = f"{self.from_value} <= {value} <= {self.to_value}"
                 validation_status.addToMessage(
                     IntegerArgument.NOT_IN_RANGE % range_string
                 )
 
             elif self.from_value is not None and self.from_value > value:
                 validation_status.setFailed()
-                range_string = "%d <= %d" % (self.from_value, value)
+                range_string = f"{self.from_value} <= {value}"
                 validation_status.addToMessage(
                     IntegerArgument.NOT_IN_RANGE % range_string
                 )
 
             elif self.to_value is not None and self.to_value < value:
                 validation_status.setFailed()
-                range_string = "%d <= %d" % (value, self.to_value)
+                range_string = f"{value} <= {self.to_value}"
                 validation_status.addToMessage(
                     IntegerArgument.NOT_IN_RANGE % range_string
                 )

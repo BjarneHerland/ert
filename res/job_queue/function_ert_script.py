@@ -1,14 +1,7 @@
-import cwrap
 from ecl.util.util.stringlist import StringList
 
+from res import ResPrototype
 from res.job_queue import ErtScript
-
-
-class _NonePrototype(cwrap.Prototype):
-    lib = cwrap.load(None)
-
-    def __init__(self, prototype, bind=True):
-        super().__init__(_NonePrototype.lib, prototype, bind=bind)
 
 
 class FunctionErtScript(ErtScript):
@@ -18,9 +11,7 @@ class FunctionErtScript(ErtScript):
         parsed_argument_types = []
 
         if ert is not None:
-            self.__function = _NonePrototype(
-                "void* %s(void*, stringlist)" % function_name
-            )
+            self.__function = ResPrototype(f"void* {function_name}(void*, stringlist)")
 
         else:
             for arg in argument_types:
@@ -33,11 +24,11 @@ class FunctionErtScript(ErtScript):
                 elif arg is float:
                     parsed_argument_types.append("float")
                 else:
-                    raise TypeError("Unknown type: %s" % arg)
+                    raise TypeError(f"Unknown type: {arg}")
 
-            self.__function = _NonePrototype(
-                "void* %s(%s)"
-                % (function_name, ", ".join(parsed_argument_types[:argument_count]))
+            self.__function = ResPrototype(
+                f"void* {function_name}("
+                f"{', '.join(parsed_argument_types[:argument_count])})"
             )
 
     def run(self, *args):

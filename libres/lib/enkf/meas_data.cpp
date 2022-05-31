@@ -22,17 +22,17 @@
 */
 
 #include <cmath>
-#include <stdlib.h>
 #include <pthread.h>
+#include <stdlib.h>
 
-#include <vector>
+#include <Eigen/Dense>
 #include <algorithm>
+#include <vector>
 
-#include <ert/util/type_macros.h>
 #include <ert/util/hash.h>
-#include <ert/res_util/matrix.hpp>
-#include <ert/util/vector.h>
+#include <ert/util/type_macros.h>
 #include <ert/util/type_vector_functions.h>
+#include <ert/util/vector.h>
 
 #include <ert/enkf/meas_data.hpp>
 
@@ -132,8 +132,8 @@ static void meas_block_free__(void *arg) {
     meas_block_free(meas_block);
 }
 
-static void meas_block_initS(const meas_block_type *meas_block, matrix_type *S,
-                             int *__obs_offset) {
+static void meas_block_initS(const meas_block_type *meas_block,
+                             Eigen::MatrixXd &S, int *__obs_offset) {
     int obs_offset = *__obs_offset;
     for (int iobs = 0; iobs < meas_block->obs_size; iobs++) {
         if (meas_block->active[iobs]) {
@@ -141,7 +141,7 @@ static void meas_block_initS(const meas_block_type *meas_block, matrix_type *S,
                 int obs_index = iens * meas_block->ens_stride +
                                 iobs * meas_block->obs_stride;
 
-                matrix_iset(S, obs_offset, iens, meas_block->data[obs_index]);
+                S(obs_offset, iens) = meas_block->data[obs_index];
             }
             obs_offset++;
         }
@@ -153,31 +153,27 @@ bool meas_block_iens_active(const meas_block_type *meas_block, int iens) {
     return meas_block->ens_mask[iens];
 }
 
-static void meas_block_calculate_ens_stats(meas_block_type *meas_block) {
-    bool include_inactive = true;
-    int iobs, iens;
-    for (iobs = 0; iobs < meas_block->obs_size; iobs++) {
-        if (meas_block->active[iobs] || include_inactive) {
+void meas_block_calculate_ens_stats(meas_block_type *meas_block) {
+    for (int iobs = 0; iobs < meas_block->obs_size; iobs++) {
+        if (meas_block->active[iobs]) {
             double M1 = 0;
             double M2 = 0;
-            for (iens = 0; iens < meas_block->active_ens_size; iens++) {
+            for (int iens = 0; iens < meas_block->active_ens_size; iens++) {
                 int index = iens * meas_block->ens_stride +
                             iobs * meas_block->obs_stride;
                 M1 += meas_block->data[index];
                 M2 += meas_block->data[index] * meas_block->data[index];
             }
-            {
-                int mean_index =
-                    (meas_block->active_ens_size + 0) * meas_block->ens_stride +
-                    iobs * meas_block->obs_stride;
-                int std_index =
-                    (meas_block->active_ens_size + 1) * meas_block->ens_stride +
-                    iobs * meas_block->obs_stride;
-                double mean = M1 / meas_block->active_ens_size;
-                double var = M2 / meas_block->active_ens_size - mean * mean;
-                meas_block->data[mean_index] = mean;
-                meas_block->data[std_index] = sqrt(util_double_max(0.0, var));
-            }
+            int mean_index =
+                (meas_block->active_ens_size + 0) * meas_block->ens_stride +
+                iobs * meas_block->obs_stride;
+            int std_index =
+                (meas_block->active_ens_size + 1) * meas_block->ens_stride +
+                iobs * meas_block->obs_stride;
+            double mean = M1 / meas_block->active_ens_size;
+            double var = M2 / meas_block->active_ens_size - mean * mean;
+            meas_block->data[mean_index] = mean;
+            meas_block->data[std_index] = sqrt(std::max(0.0, var));
         }
     }
     meas_block->stat_calculated = true;
@@ -372,7 +368,7 @@ Eigen::MatrixXd meas_data_makeS(const meas_data_type *matrix) {
             const meas_block_type *meas_block =
                 (const meas_block_type *)vector_iget_const(matrix->data,
                                                            block_nr);
-            meas_block_initS(meas_block, &S, &obs_offset);
+            meas_block_initS(meas_block, S, &obs_offset);
         }
     }
     return S;

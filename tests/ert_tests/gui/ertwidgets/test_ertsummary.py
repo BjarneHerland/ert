@@ -1,4 +1,3 @@
-import inspect
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,7 +11,7 @@ def mock_ert(monkeypatch):
     ert_mock = MagicMock()
 
     string_list = StringList(["forward_model_1", "forward_model_2"])
-    ert_mock.getModelConfig.return_value.getForwardModel.return_value.joblist.return_value = (
+    ert_mock.getModelConfig.return_value.getForwardModel.return_value.joblist.return_value = (  # noqa
         string_list
     )
 

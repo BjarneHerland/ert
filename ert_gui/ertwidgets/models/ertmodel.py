@@ -3,7 +3,7 @@ from typing import List
 from ert_shared.libres_facade import LibresFacade
 from res.enkf import EnKFMain, RealizationStateEnum
 from res.enkf import ErtRunContext
-from ecl.util.util import BoolVector, StringList
+from ecl.util.util import StringList
 from ert_gui.ertwidgets import showWaitCursorWhileWaiting
 
 
@@ -45,7 +45,7 @@ def initializeCurrentCaseFromScratch(
     parameters: List[str], members: List[str], ert: EnKFMain
 ):
     selected_parameters = StringList(parameters)
-    mask = BoolVector(initial_size=ert.getEnsembleSize(), default_value=False)
+    mask = [False] * ert.getEnsembleSize()
     for member in members:
         member = int(member.strip())
         mask[member] = True
@@ -69,9 +69,9 @@ def initializeCurrentCaseFromExisting(
         and ert.getEnkfFsManager().isCaseInitialized(source_case)
         and caseExists(target_case, LibresFacade(ert))
     ):
-        total_member_count = ert.getEnsembleSize()
-
-        member_mask = BoolVector.createFromList(total_member_count, members)
+        member_mask = [False] * ert.getEnsembleSize()
+        for member in members:
+            member_mask[int(member)] = True
 
         ert.getEnkfFsManager().customInitializeCurrentFromExistingCase(
             source_case, source_report_step, member_mask, parameters

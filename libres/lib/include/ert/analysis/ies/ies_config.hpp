@@ -21,16 +21,7 @@
 
 #include <variant>
 
-enum analysis_module_flag_enum : int {
-    ANALYSIS_USE_A =
-        4, // The module will read the content of A - but not modify it.
-    ANALYSIS_UPDATE_A =
-        8, // The update will be based on modifying A directly, and not on an X matrix.
-    ANALYSIS_ITERABLE = 32 // The module can bu used as an iterative smoother.
-};
-
 namespace ies {
-namespace config {
 
 constexpr double DEFAULT_TRUNCATION = 0.98;
 constexpr const char *IES_LOGFILE_KEY = "IES_LOGFILE";
@@ -40,7 +31,6 @@ constexpr const char *ENKF_TRUNCATION_KEY = "ENKF_TRUNCATION";
 constexpr const char *IES_MAX_STEPLENGTH_KEY = "IES_MAX_STEPLENGTH";
 constexpr const char *IES_MIN_STEPLENGTH_KEY = "IES_MIN_STEPLENGTH";
 constexpr const char *IES_DEC_STEPLENGTH_KEY = "IES_DEC_STEPLENGTH";
-constexpr const char *IES_AAPROJECTION_KEY = "IES_AAPROJECTION";
 constexpr const char *IES_DEBUG_KEY = "IES_DEBUG";
 constexpr const char *ENKF_NCOMP_KEY = "ENKF_NCOMP";
 constexpr const char *INVERSION_KEY = "INVERSION";
@@ -59,51 +49,29 @@ typedef enum {
 class Config {
 public:
     explicit Config(bool ies_mode);
-    void truncation(double truncation);
+
     void subspace_dimension(int subspace_dimension);
-    const std::variant<double, int> &truncation() const;
+    void set_truncation(double truncation);
+    const std::variant<double, int> &get_truncation() const;
+    double get_dec_steplength() const;
+    void set_dec_steplength(double dec_step);
 
-    long get_option_flags() const;
-    void set_option_flags(long flags);
-    bool get_option(analysis_module_flag_enum option) const;
-    void set_option(analysis_module_flag_enum option);
-    void del_option(analysis_module_flag_enum option);
+    double get_steplength(int iteration_nr) const;
 
-    bool aaprojection() const;
-    void aaprojection(bool aaprojection);
-
-    inversion_type inversion() const;
-    void inversion(inversion_type it);
-
-    double max_steplength() const;
-    void max_steplength(double max_step);
-
-    double min_steplength() const;
-    void min_steplength(double min_step);
-
-    double dec_steplength() const;
-    void dec_steplength(double dec_step);
-
-    double steplength(int iteration_nr) const;
-    bool iterable() const;
+    // Controlled by config key: DEFAULT_IES_INVERSION
+    inversion_type inversion;
+    bool iterable;
+    // Controlled by config key: DEFAULT_IES_MAX_STEPLENGTH_KEY
+    double max_steplength;
+    // Controlled by config key: DEFAULT_IES_MIN_STEPLENGTH_KEY
+    double min_steplength;
 
 private:
+    // Used for setting threshold of eigen values or number of eigen values
     std::variant<double, int> m_truncation;
-    inversion_type
-        m_ies_inversion; // Controlled by config key: DEFAULT_IES_INVERSION
-    bool
-        m_ies_aaprojection; // Controlled by config key: DEFAULT_IES_AAPROJECTION
-    bool m_iterable;
-
-    long m_option_flags = 0;
-    double
-        m_ies_max_steplength; // Controlled by config key: DEFAULT_IES_MAX_STEPLENGTH_KEY
-    double
-        m_ies_min_steplength; // Controlled by config key: DEFAULT_IES_MIN_STEPLENGTH_KEY
-    double
-        m_ies_dec_steplength; // Controlled by config key: DEFAULT_IES_DEC_STEPLENGTH_KEY
+    // Controlled by config key: DEFAULT_IES_DEC_STEPLENGTH_KEY
+    double m_dec_steplength;
 };
 
-} // namespace config
 } // namespace ies
 #endif

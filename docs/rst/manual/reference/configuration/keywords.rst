@@ -345,8 +345,9 @@ possible to do with ERT.
                 END_DATE  2010-05-10
 
         With this END_DATE setting all simulations which have gone to
-        at least May 10th 2010 are OK. Date format YYYY-MM-DD is
-        recommended, but DD.MM.YYYY is also supported.
+        at least May 10th 2010 are OK. Date format YYYY-MM-DD is required.
+        Other time formats, like DD/MM/YYYY or DD.MM.YYYY, are deprecated
+        and its support will be removed in a future release.
 
 
 .. _enspath:
@@ -872,7 +873,7 @@ and/or history matching project.
         ERT configuration file:
 
         Naming a `GEN_KW` parameter `PRED` will prevent the parameter from being
-        added to a ministep dataset.
+        added to a update_step dataset.
 
         ::
 
@@ -1271,7 +1272,7 @@ Keywords controlling the ES algorithm
         variance criterion used in Principal Component Analysis (see e.g. Mardia et
         al. 1979).
 
-        The default value of ENKF_TRUNCATION is 0.99. If ensemble collapse is a big
+        The default value of ENKF_TRUNCATION is 0.98. If ensemble collapse is a big
         problem, a smaller value should be used (e.g 0.90 or smaller). However, this
         does not guarantee that the problem of ensemble collapse will disappear. Note
         that setting the truncation factor to 1.00, will recover the Standard-EnKF

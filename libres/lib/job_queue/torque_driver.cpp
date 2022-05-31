@@ -22,9 +22,9 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <ert/util/util.hpp>
-#include <ert/util/type_macros.hpp>
 #include <ert/res_util/file_utils.hpp>
+#include <ert/util/type_macros.hpp>
+#include <ert/util/util.hpp>
 
 #include <ert/job_queue/torque_driver.hpp>
 
@@ -58,12 +58,10 @@ struct torque_job_struct {
 
 UTIL_SAFE_CAST_FUNCTION(torque_driver, TORQUE_DRIVER_TYPE_ID);
 
-static UTIL_SAFE_CAST_FUNCTION_CONST(
-    torque_driver,
-    TORQUE_DRIVER_TYPE_ID) static UTIL_SAFE_CAST_FUNCTION(torque_job,
-                                                          TORQUE_JOB_TYPE_ID)
+static UTIL_SAFE_CAST_FUNCTION_CONST(torque_driver, TORQUE_DRIVER_TYPE_ID);
+static UTIL_SAFE_CAST_FUNCTION(torque_job, TORQUE_JOB_TYPE_ID);
 
-    void *torque_driver_alloc() {
+void *torque_driver_alloc() {
     torque_driver_type *torque_driver =
         (torque_driver_type *)util_malloc(sizeof *torque_driver);
     UTIL_TYPE_ID_INIT(torque_driver, TORQUE_DRIVER_TYPE_ID);

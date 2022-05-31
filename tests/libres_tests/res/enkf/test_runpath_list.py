@@ -6,12 +6,12 @@ from libres_utils import ResTest
 from res.enkf import RunpathList, RunpathNode
 
 
-def path(idx):
-    return "path_%d" % idx
+def path(idx: int):
+    return f"path_{idx}"
 
 
-def base(idx):
-    return "base_%d" % idx
+def base(idx: int):
+    return f"base_{idx}"
 
 
 class RunpathListTest(ResTest):
@@ -111,6 +111,7 @@ class RunpathListTest(ResTest):
             nodeslice = [node3, node4, node5, node6]
             self.assertEqual(nodeslice, runpath_list[3:7])
             self.assertEqual(node6, runpath_list[-2])
+            # pylint: disable=pointless-statement
             with self.assertRaises(TypeError):
                 runpath_list["key"]
             with self.assertRaises(IndexError):

@@ -8,17 +8,17 @@ from res.enkf.data import ExtParam
 
 
 class ExtParamTest(ResTest):
+    # pylint: disable=pointless-statement
     def test_config(self):
         input_keys = ["key1", "key2", "key3"]
         config = ExtParamConfig("Key", input_keys)
         self.assertTrue(len(config), 3)
 
-        for i in range(len(config)):
-            configkey, _ = config[i]
-            self.assertEqual(configkey, input_keys[i])
+        for index, (configkey, _) in enumerate(config):
+            self.assertEqual(configkey, input_keys[index])
 
         with self.assertRaises(IndexError):
-            c = config[100]
+            config[100]
 
         keys = []
         for key in config.keys():
@@ -47,8 +47,7 @@ class ExtParamTest(ResTest):
         self.assertNotIn(("key3", "not_me_either"), config)
         self.assertNotIn(("who", "b"), config)
 
-        for i in range(len(config)):
-            configkey, configsuffixes = config[i]
+        for (configkey, configsuffixes) in config:
             self.assertIn(configkey, input_dict)
             self.assertIn(configsuffixes, input_suffixes)
 
@@ -57,10 +56,10 @@ class ExtParamTest(ResTest):
             self.assertIn(configsuffixes, input_suffixes)
 
         with self.assertRaises(IndexError):
-            c = config[100]
+            config[100]
 
         with self.assertRaises(IndexError):
-            c = config["no_such_key"]
+            config["no_such_key"]
 
         self.assertEqual(set(config.keys()), set(input_dict.keys()))
 
@@ -93,8 +92,8 @@ class ExtParamTest(ResTest):
             data.set_vector([1, 2])
 
         data.set_vector([1, 2, 3])
-        for i in range(len(data)):
-            self.assertEqual(i + 1, data[i])
+        for index, value in enumerate(data):
+            self.assertEqual(index + 1, value)
 
         with TestAreaContext("json"):
             data.export("file.json")
@@ -117,15 +116,15 @@ class ExtParamTest(ResTest):
         data = ExtParam(config)
 
         with self.assertRaises(IndexError):
-            d = data[0]  # Cannot use indices when we have suffixes
+            data[0]  # Cannot use indices when we have suffixes
         with self.assertRaises(TypeError):
-            d = data["key1", 1]
+            data["key1", 1]
         with self.assertRaises(KeyError):
-            d = data["NoSuchKey"]
+            data["NoSuchKey"]
         with self.assertRaises(KeyError):
-            d = data["key1"]  # requires a suffix
+            data["key1"]  # requires a suffix
         with self.assertRaises(KeyError):
-            d = data["key1", "no_such_suffix"]
+            data["key1", "no_such_suffix"]
 
         data["key1", "a"] = 1
         data["key1", "b"] = 500.5

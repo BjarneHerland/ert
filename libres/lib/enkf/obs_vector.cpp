@@ -20,17 +20,17 @@
    See the overview documentation of the observation system in enkf_obs.c
 */
 
+#include <algorithm>
+#include <cmath>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
-#include <cmath>
 #include <vector>
-#include <algorithm>
 
+#include <ert/util/bool_vector.h>
+#include <ert/util/double_vector.h>
 #include <ert/util/util.h>
 #include <ert/util/vector.h>
-#include <ert/util/double_vector.h>
-#include <ert/util/bool_vector.h>
 
 #include <ert/sched/history.hpp>
 
@@ -38,14 +38,12 @@
 
 #include <ert/ecl/ecl_grid.h>
 
+#include <ert/enkf/active_list.hpp>
+#include <ert/enkf/block_obs.hpp>
+#include <ert/enkf/enkf_defaults.hpp>
+#include <ert/enkf/gen_obs.hpp>
 #include <ert/enkf/obs_vector.hpp>
 #include <ert/enkf/summary_obs.hpp>
-#include <ert/enkf/block_obs.hpp>
-#include <ert/enkf/gen_obs.hpp>
-#include <ert/enkf/enkf_defaults.hpp>
-#include <ert/enkf/local_obsdata.hpp>
-#include <ert/enkf/local_obsdata_node.hpp>
-#include <ert/enkf/active_list.hpp>
 
 #define OBS_VECTOR_TYPE_ID 120086
 
@@ -425,7 +423,6 @@ obs_vector_type *obs_vector_alloc_from_GENERAL_OBSERVATION(
         const char *index_file = NULL;
         const char *index_list = NULL;
         const char *obs_file = NULL;
-        const char *error_covar_file = NULL;
 
         if (conf_instance_has_item(conf_instance, "INDEX_FILE"))
             index_file =
@@ -438,10 +435,6 @@ obs_vector_type *obs_vector_alloc_from_GENERAL_OBSERVATION(
         if (conf_instance_has_item(conf_instance, "OBS_FILE"))
             obs_file =
                 conf_instance_get_item_value_ref(conf_instance, "OBS_FILE");
-
-        if (conf_instance_has_item(conf_instance, "ERROR_COVAR"))
-            error_covar_file =
-                conf_instance_get_item_value_ref(conf_instance, "ERROR_COVAR");
 
         {
             obs_vector_type *obs_vector = NULL;
@@ -473,7 +466,7 @@ obs_vector_type *obs_vector_alloc_from_GENERAL_OBSERVATION(
                         (const gen_data_config_type *)enkf_config_node_get_ref(
                             config_node),
                         obs_key, obs_file, scalar_value, scalar_error,
-                        index_file, index_list, error_covar_file);
+                        index_file, index_list);
                     obs_vector_install_node(obs_vector, obs_restart_nr,
                                             gen_obs);
                 } else
@@ -655,24 +648,6 @@ bool obs_vector_load_from_HISTORY_OBSERVATION(
         double_vector_free(value);
         bool_vector_free(valid);
         return initOK;
-    }
-}
-
-void obs_vector_scale_std(obs_vector_type *obs_vector,
-                          const LocalObsDataNode *local_node,
-                          double std_multiplier) {
-    const auto *active_list = local_node->active_list();
-    int tstep = -1;
-
-    while (true) {
-        tstep = obs_vector_get_next_active_step(obs_vector, tstep);
-        if (tstep < 0)
-            break;
-
-        void *observation = obs_vector_iget_node(obs_vector, tstep);
-        if (observation)
-            obs_vector->update_std_scale(observation, std_multiplier,
-                                         active_list);
     }
 }
 
@@ -879,18 +854,16 @@ obs_vector_type *obs_vector_alloc_from_BLOCK_OBSERVATION(
 
 void obs_vector_iget_observations(const obs_vector_type *obs_vector,
                                   int report_step, obs_data_type *obs_data,
-                                  const ActiveList *active_list,
                                   enkf_fs_type *fs) {
     void *obs_node = (void *)vector_iget(obs_vector->nodes, report_step);
     if (obs_node != NULL)
-        obs_vector->get_obs(obs_node, obs_data, fs, report_step, active_list);
+        obs_vector->get_obs(obs_node, obs_data, fs, report_step);
 }
 
 void obs_vector_measure(const obs_vector_type *obs_vector, enkf_fs_type *fs,
                         int report_step,
                         const std::vector<int> &ens_active_list,
-                        meas_data_type *meas_data,
-                        const ActiveList *active_list) {
+                        meas_data_type *meas_data) {
 
     void *obs_node = (void *)vector_iget(obs_vector->nodes, report_step);
     if (obs_node != NULL) {
@@ -906,7 +879,7 @@ void obs_vector_measure(const obs_vector_type *obs_vector, enkf_fs_type *fs,
 
             enkf_node_load(enkf_node, fs, node_id);
             obs_vector->measure(obs_node, enkf_node_value_ptr(enkf_node),
-                                node_id, meas_data, active_list);
+                                node_id, meas_data);
         }
 
         enkf_node_free(enkf_node);
@@ -1080,11 +1053,6 @@ double obs_vector_total_chi2(const obs_vector_type *obs_vector,
 
 const char *obs_vector_get_obs_key(const obs_vector_type *obs_vector) {
     return obs_vector->obs_key;
-}
-
-LocalObsDataNode *
-obs_vector_alloc_local_node(const obs_vector_type *obs_vector) {
-    return new LocalObsDataNode(obs_vector->obs_key);
 }
 
 VOID_FREE(obs_vector)

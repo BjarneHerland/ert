@@ -16,29 +16,29 @@
    for more details.
 */
 
-#include <vector>
-#include <string>
-#include <sstream>
 #include <algorithm>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <pthread.h>
 #include <dlfcn.h>
+#include <pthread.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
 #include <ert/logging.hpp>
-#include <ert/util/util.hpp>
-#include <ert/util/hash.hpp>
 #include <ert/res_util/res_env.hpp>
 #include <ert/res_util/string.hpp>
+#include <ert/util/hash.hpp>
+#include <ert/util/util.hpp>
 
-#include <ert/job_queue/queue_driver.hpp>
 #include <ert/job_queue/lsf_driver.hpp>
 #include <ert/job_queue/lsf_job_stat.hpp>
+#include <ert/job_queue/queue_driver.hpp>
 
 namespace fs = std::filesystem;
 static auto logger = ert::get_logger("job_queue.lsf_driver");
@@ -170,12 +170,11 @@ struct lsf_driver_struct {
     char *bhist_cmd;
 };
 
-UTIL_SAFE_CAST_FUNCTION(lsf_driver, LSF_DRIVER_TYPE_ID)
-static UTIL_SAFE_CAST_FUNCTION_CONST(
-    lsf_driver,
-    LSF_DRIVER_TYPE_ID) static UTIL_SAFE_CAST_FUNCTION(lsf_job, LSF_JOB_TYPE_ID)
+UTIL_SAFE_CAST_FUNCTION(lsf_driver, LSF_DRIVER_TYPE_ID);
+static UTIL_SAFE_CAST_FUNCTION_CONST(lsf_driver, LSF_DRIVER_TYPE_ID);
+static UTIL_SAFE_CAST_FUNCTION(lsf_job, LSF_JOB_TYPE_ID);
 
-    static lsf_job_type *lsf_job_alloc(const char *job_name) {
+static lsf_job_type *lsf_job_alloc(const char *job_name) {
     lsf_job_type *job;
     job = (lsf_job_type *)util_malloc(sizeof *job);
     job->num_exec_host = 0;

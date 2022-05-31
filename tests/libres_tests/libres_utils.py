@@ -7,7 +7,6 @@ import tempfile
 import threading
 import time
 from functools import partial
-from pathlib import Path
 
 import decorator
 import pytest
@@ -52,7 +51,7 @@ def tmp(path=None, teardown=True):
     if path:
         if not os.path.isdir(path):
             logging.debug("tmp:raise no such path")
-            raise IOError("No such directory: %s" % path)
+            raise IOError(f"No such directory: {path}")
         shutil.copytree(path, fname)
     else:
         # no path to copy, create empty dir
@@ -68,7 +67,7 @@ def tmp(path=None, teardown=True):
         try:
             shutil.rmtree(fname)
         except OSError as oserr:
-            logging.debug("tmp:rmtree failed %s (%s)" % (fname, oserr))
+            logging.debug(f"tmp:rmtree failed {fname} ({oserr})")
             shutil.rmtree(fname, ignore_errors=True)
 
 
@@ -91,9 +90,9 @@ def wait_until(func, interval=0.5, timeout=30):
         except AssertionError:
             if t >= timeout:
                 raise AssertionError(
-                    "Timeout reached in wait_until (function {%s}, timeout {%d}) when waiting for assertion.".format(
-                        func.__name__, timeout
-                    )
+                    "Timeout reached in wait_until "
+                    f"(function {func.__name__}, timeout {timeout:g}) "
+                    "when waiting for assertion."
                 )
 
 
@@ -150,6 +149,7 @@ class ResTest(ExtendedTestCase):
     def createSharePath(cls, path):
         if cls.SHARE_ROOT is None:
             raise Exception(
-                "Trying to create directory rooted in 'SHARE_ROOT' - variable 'SHARE_ROOT' is not set."
+                "Trying to create directory rooted in 'SHARE_ROOT' "
+                "- variable 'SHARE_ROOT' is not set."
             )
         return os.path.realpath(os.path.join(cls.SHARE_ROOT, path))

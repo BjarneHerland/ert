@@ -1,20 +1,20 @@
+#include <algorithm>
+#include <cmath>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <cmath>
-#include <algorithm>
 
 #include <catch2/catch.hpp>
 
-#include <ert/util/rng.h>
 #include <ert/enkf/enkf_util.hpp>
-#include <ert/enkf/row_scaling.hpp>
 #include <ert/enkf/meas_data.hpp>
+#include <ert/enkf/row_scaling.hpp>
+#include <ert/util/rng.h>
 
-#include <ert/analysis/update.hpp>
 #include <ert/analysis/ies/ies.hpp>
 #include <ert/analysis/ies/ies_config.hpp>
 #include <ert/analysis/ies/ies_data.hpp>
+#include <ert/analysis/update.hpp>
 
 /**
  * @brief Test of analysis update using posterior properties described in ert-docs: https://ert.readthedocs.io/en/latest/theory/ensemble_based_methods.html
@@ -22,18 +22,23 @@
  */
 
 namespace analysis {
-void run_analysis_update_without_rowscaling(
-    const ies::config::Config &module_config, ies::data::Data &module_data,
-    const std::vector<bool> &ens_mask, const std::vector<bool> &obs_mask,
-    const Eigen::MatrixXd &S, const Eigen::MatrixXd &E,
-    const Eigen::MatrixXd &D, const Eigen::MatrixXd &R, Eigen::MatrixXd &A);
 
 void run_analysis_update_with_rowscaling(
-    const ies::config::Config &module_config, ies::data::Data &module_data,
+    const ies::Config &module_config, ies::Data &module_data,
     const Eigen::MatrixXd &S, const Eigen::MatrixXd &E,
     const Eigen::MatrixXd &D, const Eigen::MatrixXd &R,
     std::vector<std::pair<Eigen::MatrixXd, std::shared_ptr<RowScaling>>>
-        &parameters);
+        &parameters) {
+    for (auto &[A, row_scaling] : parameters) {
+        int active_ens_size = S.cols();
+        Eigen::MatrixXd W0 =
+            Eigen::MatrixXd::Zero(active_ens_size, active_ens_size);
+        Eigen::MatrixXd X =
+            ies::makeX(A, S, R, E, D, module_config.inversion,
+                       module_config.get_truncation(), W0, 1, 1);
+        row_scaling->multiply(A, X);
+    }
+};
 } // namespace analysis
 const double a_true = 1.0;
 const double b_true = 5.0;
@@ -59,20 +64,32 @@ struct model {
     int size() { return 2; }
 };
 
+void simple_update(const ies::Config &module_config, ies::Data &module_data,
+                   const std::vector<bool> &ens_mask,
+                   const std::vector<bool> &obs_mask, const Eigen::MatrixXd &S,
+                   const Eigen::MatrixXd &E, const Eigen::MatrixXd &D,
+                   const Eigen::MatrixXd &R, Eigen::MatrixXd &A) {
+    int active_ens_size = S.cols();
+    Eigen::MatrixXd W0 =
+        Eigen::MatrixXd::Zero(active_ens_size, active_ens_size);
+    Eigen::MatrixXd X = ies::makeX(A, S, R, E, D, module_config.inversion,
+                                   module_config.get_truncation(), W0, 1, 1);
+
+    A *= X;
+};
+
 SCENARIO("Running analysis update with and without row scaling on linear model",
          "[analysis]") {
 
     GIVEN("Fixed prior and measurements") {
         int ens_size = GENERATE(10, 100, 200);
-        ies::data::Data module_data(ens_size);
-        ies::config::Config config(false);
-        config.truncation(1.0);
+        ies::Data module_data(ens_size);
+        ies::Config config(false);
 
         auto rng = rng_alloc(MZRAN, INIT_DEFAULT);
 
         std::vector<bool> ens_mask(ens_size, true);
         auto meas_data = meas_data_alloc(ens_mask);
-        double global_std_scaling = 1.0;
         auto obs_data = obs_data_alloc(1.0);
 
         model true_model{a_true, b_true};
@@ -94,42 +111,40 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
 
         // observations and measurements
         int obs_size = 45;
-        std::vector<double> sd_obs_values{10000.0, 100.0, 10.0,   1.0,
-                                          0.1,     0.01,  0.00001};
+        std::vector<double> sd_obs_values{10000.0, 100.0, 10.0, 1.0, 0.1};
+
         const char *obs_key = "OBS1";
         meas_block_type *mb =
             meas_data_add_block(meas_data, obs_key, 1, obs_size);
-        obs_block_type *ob =
-            obs_data_add_block(obs_data, obs_key, obs_size, nullptr, false);
+        obs_block_type *ob = obs_data_add_block(obs_data, obs_key, obs_size);
         std::vector<double> xarg(obs_size);
         for (int i = 0; i < obs_size; i++) {
             xarg[i] = i;
         }
         for (int iens = 0; iens < ens_size; iens++) {
             const auto &m = ens[iens];
-            // This is equivalent to M*psi_f in Data Assimilation: The Ensemble Kalman Filter, Geir Evensen, 2009.
             for (int iobs = 0; iobs < obs_size; iobs++)
                 meas_block_iset(mb, iens, iobs, m.eval(xarg[iobs]));
         }
-        std::vector<double> measurements(obs_size);
+        std::vector<double> observations(obs_size);
         for (int iobs = 0; iobs < obs_size; iobs++) {
-            // When measurements != true model, then ml estimates != true parameters
-            // This gives both a more advanced and realistic test
-            // Standard normal N(0,1) noise is added to obtain this
-            // The randomness ensures we are not gaming the test
-            // But the difference could in principle be any non-zero scalar
-            measurements[iobs] = true_model.eval(xarg[iobs]) +
+            // When observations != true model, then ml estimates != true parameters.
+            // This gives both a more advanced and realistic test.
+            // Standard normal N(0,1) noise is added to obtain this.
+            // The randomness ensures we are not gaming the test.
+            // But the difference could in principle be any non-zero scalar.
+            observations[iobs] = true_model.eval(xarg[iobs]) +
                                  enkf_util_rand_normal(0.0, 1.0, rng);
         }
 
-        // Leading to fixed Maximum likelihood estimate
-        // It will equal true values when measurements are sampled without noise
-        // It will also stay the same over beliefs
+        // Leading to fixed Maximum likelihood estimate.
+        // It will equal true values when observations are sampled without noise.
+        // It will also stay the same over beliefs.
         double obs_mean = 0.0;
         double xarg_sum = 0.0;
         double xarg_sum_squared = 0.0;
         for (int iobs = 0; iobs < obs_size; iobs++) {
-            obs_mean += measurements[iobs];
+            obs_mean += observations[iobs];
             xarg_sum += xarg[iobs];
             xarg_sum_squared += std::pow(xarg[iobs], 2);
         }
@@ -137,26 +152,26 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
         double iobs_mean = xarg_sum / obs_size;
         double a_ml_numerator = 0.0;
         for (int iobs = 0; iobs < obs_size; iobs++) {
-            a_ml_numerator += xarg[iobs] * (measurements[iobs] - obs_mean);
+            a_ml_numerator += xarg[iobs] * (observations[iobs] - obs_mean);
         }
         double a_ml =
             a_ml_numerator / (xarg_sum_squared - iobs_mean * xarg_sum);
         double b_ml = obs_mean - a_ml * iobs_mean;
 
-        // Store posterior results when iterating over belief in measurements
+        // Store posterior results when iterating over belief in observations
         int n_sd = sd_obs_values.size();
         std::vector<double> a_avg_posterior(n_sd);
         std::vector<double> b_avg_posterior(n_sd);
         std::vector<double> d_posterior_ml(n_sd);
         std::vector<double> d_prior_posterior(n_sd);
 
-        WHEN("Iterating over belief in measurements without row scaling") {
+        WHEN("Iterating over belief in observations without row scaling") {
             for (int i_sd = 0; i_sd < n_sd; i_sd++) {
                 double obs_std = sd_obs_values[i_sd];
                 for (int iobs = 0; iobs < obs_size; iobs++) {
-                    // The improtant part: measurement observations stay the same
+                    // The improtant part: observations stay the same
                     // What is iterated is the belief in them
-                    obs_block_iset(ob, iobs, measurements[iobs], obs_std);
+                    obs_block_iset(ob, iobs, observations[iobs], obs_std);
                 }
 
                 int active_obs_size = obs_data_get_active_size(obs_data);
@@ -168,13 +183,12 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
                 Eigen::VectorXd observation_values =
                     obs_data_values_as_vector(obs_data);
                 Eigen::VectorXd observation_errors =
-                    obs_data_errors_as_vector(obs_data) * global_std_scaling;
-                Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
+                    obs_data_errors_as_vector(obs_data);
 
                 Eigen::MatrixXd S = meas_data_makeS(meas_data);
-                Eigen::MatrixXd R =
-                    observation_errors.cwiseProduct(observation_errors)
-                        .asDiagonal();
+                Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
+                Eigen::MatrixXd R = Eigen::MatrixXd::Identity(
+                    observation_errors.rows(), observation_errors.rows());
                 Eigen::MatrixXd D = ies::makeD(observation_values, E, S);
 
                 Eigen::VectorXd error_inverse =
@@ -182,14 +196,12 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
                 S = S.array().colwise() * error_inverse.array();
                 E = E.array().colwise() * error_inverse.array();
                 D = D.array().colwise() * error_inverse.array();
-                R = R.cwiseProduct(error_inverse * error_inverse.transpose());
 
                 const std::vector<bool> obs_mask =
                     obs_data_get_active_mask(obs_data);
                 Eigen::MatrixXd A_iter = A; // Preserve prior
-                analysis::run_analysis_update_without_rowscaling(
-                    config, module_data, ens_mask, obs_mask, S, E, D, R,
-                    A_iter);
+                simple_update(config, module_data, ens_mask, obs_mask, S, E, D,
+                              R, A_iter);
 
                 // Extract estimates
                 a_avg_posterior[i_sd] = A_iter.row(0).sum() / ens_size;
@@ -245,7 +257,7 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             std::vector parameters{std::pair{A_with_scaling, row_scaling}};
 
             for (int iobs = 0; iobs < obs_size; iobs++) {
-                obs_block_iset(ob, iobs, measurements[iobs], 1.0);
+                obs_block_iset(ob, iobs, observations[iobs], 1.0);
             }
             int active_obs_size = obs_data_get_active_size(obs_data);
             Eigen::MatrixXd noise =
@@ -256,13 +268,12 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             Eigen::VectorXd observation_values =
                 obs_data_values_as_vector(obs_data);
             Eigen::VectorXd observation_errors =
-                obs_data_errors_as_vector(obs_data) * global_std_scaling;
+                obs_data_errors_as_vector(obs_data);
             Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
 
             Eigen::MatrixXd S = meas_data_makeS(meas_data);
-            Eigen::MatrixXd R =
-                observation_errors.cwiseProduct(observation_errors)
-                    .asDiagonal();
+            Eigen::MatrixXd R = Eigen::MatrixXd::Identity(
+                observation_errors.rows(), observation_errors.rows());
             Eigen::MatrixXd D = ies::makeD(observation_values, E, S);
 
             Eigen::VectorXd error_inverse =
@@ -270,7 +281,6 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             S = S.array().colwise() * error_inverse.array();
             E = E.array().colwise() * error_inverse.array();
             D = D.array().colwise() * error_inverse.array();
-            R = R.cwiseProduct(error_inverse * error_inverse.transpose());
 
             analysis::run_analysis_update_with_rowscaling(
                 config, module_data, S, E, D, R, parameters);
@@ -291,7 +301,7 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             std::vector parameters{std::pair{A, row_scaling}};
 
             for (int iobs = 0; iobs < obs_size; iobs++) {
-                obs_block_iset(ob, iobs, measurements[iobs], 1.0);
+                obs_block_iset(ob, iobs, observations[iobs], 1.0);
             }
             int active_obs_size = obs_data_get_active_size(obs_data);
             Eigen::MatrixXd noise =
@@ -302,13 +312,11 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             Eigen::VectorXd observation_values =
                 obs_data_values_as_vector(obs_data);
             Eigen::VectorXd observation_errors =
-                obs_data_errors_as_vector(obs_data) * global_std_scaling;
+                obs_data_errors_as_vector(obs_data);
             Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
-
             Eigen::MatrixXd S = meas_data_makeS(meas_data);
-            Eigen::MatrixXd R =
-                observation_errors.cwiseProduct(observation_errors)
-                    .asDiagonal();
+            Eigen::MatrixXd R = Eigen::MatrixXd::Identity(
+                observation_errors.rows(), observation_errors.rows());
             Eigen::MatrixXd D = ies::makeD(observation_values, E, S);
 
             Eigen::VectorXd error_inverse =
@@ -316,12 +324,11 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             S = S.array().colwise() * error_inverse.array();
             E = E.array().colwise() * error_inverse.array();
             D = D.array().colwise() * error_inverse.array();
-            R = R.cwiseProduct(error_inverse * error_inverse.transpose());
+
             const std::vector<bool> obs_mask =
                 obs_data_get_active_mask(obs_data);
-            analysis::run_analysis_update_without_rowscaling(
-                config, module_data, ens_mask, obs_mask, S, E, D, R,
-                A_no_scaling);
+            simple_update(config, module_data, ens_mask, obs_mask, S, E, D, R,
+                          A_no_scaling);
             analysis::run_analysis_update_with_rowscaling(
                 config, module_data, S, E, D, R, parameters);
 
@@ -342,7 +349,7 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             std::vector parameters{std::pair{A, row_scaling}};
 
             for (int iobs = 0; iobs < obs_size; iobs++) {
-                obs_block_iset(ob, iobs, measurements[iobs], 1.0);
+                obs_block_iset(ob, iobs, observations[iobs], 1.0);
             }
             int active_obs_size = obs_data_get_active_size(obs_data);
             Eigen::MatrixXd noise =
@@ -353,13 +360,12 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             Eigen::VectorXd observation_values =
                 obs_data_values_as_vector(obs_data);
             Eigen::VectorXd observation_errors =
-                obs_data_errors_as_vector(obs_data) * global_std_scaling;
+                obs_data_errors_as_vector(obs_data);
             Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
 
             Eigen::MatrixXd S = meas_data_makeS(meas_data);
-            Eigen::MatrixXd R =
-                observation_errors.cwiseProduct(observation_errors)
-                    .asDiagonal();
+            Eigen::MatrixXd R = Eigen::MatrixXd::Identity(
+                observation_errors.rows(), observation_errors.rows());
             Eigen::MatrixXd D = ies::makeD(observation_values, E, S);
 
             Eigen::VectorXd error_inverse =
@@ -367,14 +373,13 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             S = S.array().colwise() * error_inverse.array();
             E = E.array().colwise() * error_inverse.array();
             D = D.array().colwise() * error_inverse.array();
-            R = R.cwiseProduct(error_inverse * error_inverse.transpose());
+
             const std::vector<bool> obs_mask =
                 obs_data_get_active_mask(obs_data);
             analysis::run_analysis_update_with_rowscaling(
                 config, module_data, S, E, D, R, parameters);
-            analysis::run_analysis_update_without_rowscaling(
-                config, module_data, ens_mask, obs_mask, S, E, D, R,
-                A_no_scaling);
+            simple_update(config, module_data, ens_mask, obs_mask, S, E, D, R,
+                          A_no_scaling);
 
             THEN("First row of scaled parameters should equal first row of "
                  "unscaled parameters, while second row of scaled parameters "
@@ -393,9 +398,9 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
             for (int i_sd = 0; i_sd < n_sd; i_sd++) {
                 double obs_std = sd_obs_values[i_sd];
                 for (int iobs = 0; iobs < obs_size; iobs++) {
-                    // The improtant part: measurement observations stay the same
+                    // The improtant part: observations stay the same
                     // What is iterated is the belief in them
-                    obs_block_iset(ob, iobs, measurements[iobs], obs_std);
+                    obs_block_iset(ob, iobs, observations[iobs], obs_std);
                 }
                 Eigen::MatrixXd A_with_scaling = A;
 
@@ -413,13 +418,12 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
                 Eigen::VectorXd observation_values =
                     obs_data_values_as_vector(obs_data);
                 Eigen::VectorXd observation_errors =
-                    obs_data_errors_as_vector(obs_data) * global_std_scaling;
+                    obs_data_errors_as_vector(obs_data);
                 Eigen::MatrixXd E = ies::makeE(observation_errors, noise);
 
                 Eigen::MatrixXd S = meas_data_makeS(meas_data);
-                Eigen::MatrixXd R =
-                    observation_errors.cwiseProduct(observation_errors)
-                        .asDiagonal();
+                Eigen::MatrixXd R = Eigen::MatrixXd::Identity(
+                    observation_errors.rows(), observation_errors.rows());
                 Eigen::MatrixXd D = ies::makeD(observation_values, E, S);
 
                 Eigen::VectorXd error_inverse =
@@ -427,7 +431,6 @@ SCENARIO("Running analysis update with and without row scaling on linear model",
                 S = S.array().colwise() * error_inverse.array();
                 E = E.array().colwise() * error_inverse.array();
                 D = D.array().colwise() * error_inverse.array();
-                R = R.cwiseProduct(error_inverse * error_inverse.transpose());
                 const std::vector<bool> obs_mask =
                     obs_data_get_active_mask(obs_data);
                 analysis::run_analysis_update_with_rowscaling(

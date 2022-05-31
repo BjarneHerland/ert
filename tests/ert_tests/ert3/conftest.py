@@ -8,7 +8,6 @@ import contextlib
 
 import ert.storage
 
-import requests
 import pytest
 import typing
 
@@ -213,9 +212,10 @@ def oat_incompatible_record_file(workspace_integration):
 def base_ensemble_dict():
     yield {
         "size": 10,
-        "input": [{"source": "stochastic.coefficients", "record": "coefficients"}],
-        "output": [{"record": "polynomial_output"}],
+        "input": [{"source": "stochastic.coefficients", "name": "coefficients"}],
+        "output": [{"name": "polynomial_output"}],
         "forward_model": {"driver": "local", "stage": "evaluate_polynomial"},
+        "experiment": {"type": "evaluation"},
     }
 
 
@@ -270,6 +270,8 @@ def stages_config(stages_config_list, plugin_registry):
     yield ert3.config.load_stages_config(
         stages_config_list, plugin_registry=plugin_registry
     )
+
+    script_file.unlink()
 
 
 @pytest.fixture()
@@ -337,6 +339,8 @@ def double_stages_config(double_stages_config_list, plugin_registry):
         double_stages_config_list, plugin_registry=plugin_registry
     )
 
+    script_file.unlink()
+
 
 @pytest.fixture()
 def x_uncertainty_stages_config(plugin_registry):
@@ -386,6 +390,8 @@ def x_uncertainty_stages_config(plugin_registry):
     os.chmod(script_file, st.st_mode | stat.S_IEXEC)
 
     yield ert3.config.load_stages_config(config_list, plugin_registry=plugin_registry)
+
+    script_file.unlink()
 
 
 @pytest.fixture()

@@ -9,7 +9,7 @@ from typing import Any, List, Union
 
 import pkg_resources as pkg
 
-import ert
+import ert.storage
 import ert3
 from ert3.config import DEFAULT_RECORD_MIME_TYPE, ConfigPluginRegistry
 from ert3.workspace import Workspace
@@ -43,7 +43,27 @@ def _build_run_argparser(subparsers: Any) -> None:
         help=(
             "Will evaluate a single realization locally in the "
             "folder `<workspace root>/local-test-run-xxxxxx` where xxxxxx "
-            "is an id appended to the experiment name."
+            "is a unique identifier."
+        ),
+    )
+    run_parser.add_argument(
+        "--realization",
+        default=None,  # The default is injected in code
+        type=int,
+        help=(
+            "Which realization to run for local test runs. Must be unset "
+            "for other runs. Default is 0."
+        ),
+    )
+
+    run_parser.add_argument(
+        "--gui",
+        default=False,
+        action="store_true",
+        help=(
+            "Will open a gui window, which "
+            "shows a detailed view on individual running realizations "
+            "and jobs within."
         ),
     )
 
@@ -101,7 +121,7 @@ def _build_record_argparser(subparsers: Any) -> None:
         "sample", help="Sample stochastic parameter into a record"
     )
     sample_parser.add_argument(
-        "parameter_group", help="Name of the distribution group in parameters.yml"
+        "parameter", help="Name of the parameter in parameters.yml"
     )
     sample_parser.add_argument("record_name", help="Name of the resulting record")
     sample_parser.add_argument(
@@ -111,6 +131,10 @@ def _build_record_argparser(subparsers: Any) -> None:
 
 def _build_status_argparser(subparsers: Any) -> None:
     subparsers.add_parser("status", help="Report the status of all experiments")
+
+
+def _build_visualise_argparser(subparsers: Any) -> None:
+    subparsers.add_parser("vis", help="Starts webviz-ert for ert3")
 
 
 def _build_clean_argparser(subparsers: Any) -> None:
@@ -172,6 +196,7 @@ def _build_argparser() -> Any:
     _build_status_argparser(subparsers)
     _build_clean_argparser(subparsers)
     _build_service_argparser(subparsers)
+    _build_visualise_argparser(subparsers)
 
     return parser
 
@@ -246,10 +271,13 @@ def _init(args: Any) -> None:
 def _build_local_test_run_config(
     experiment_run_config: ert3.config.ExperimentRunConfig,
     plugin_registry: ConfigPluginRegistry,
+    realization: int = 0,
 ) -> ert3.config.ExperimentRunConfig:
     """Validate and modify a run configuration for a local test run scenario.
 
-    The ensemble size is set to 1, and the driver is set to "local".
+    Only the supplied realization index is set active in the ensemble.
+
+    The driver is set to "local".
     """
     if experiment_run_config.experiment_config.type != "evaluation":
         raise ert.exceptions.ExperimentError(
@@ -257,23 +285,13 @@ def _build_local_test_run_config(
             f"{experiment_run_config.experiment_config.type}"
         )
 
-    for input_record in experiment_run_config.ensemble_config.input:
-        if input_record.source_namespace not in (
-            ert3.config.SourceNS.resources,
-            ert3.config.SourceNS.stochastic,
-        ):
-            raise NotImplementedError(
-                "Local test runs are currently only supported for "
-                "stochastic and resources input sources. "
-                f"Found:\n'{input_record.source_namespace}'."
-            )
-
     raw_ensemble_config = experiment_run_config.ensemble_config.dict()
-    raw_ensemble_config["size"] = 1
+
+    raw_ensemble_config["active_range"] = str(realization)
+
     raw_ensemble_config["forward_model"]["driver"] = "local"
 
     return ert3.config.ExperimentRunConfig(
-        experiment_run_config.experiment_config,
         experiment_run_config.stages_config,
         ert3.config.load_ensemble_config(
             raw_ensemble_config, plugin_registry=plugin_registry
@@ -294,9 +312,20 @@ def _run(
     )
 
     if args.local_test_run:
+        if args.realization is None:
+            realization = 0
+        else:
+            realization = args.realization
         experiment_run_config = _build_local_test_run_config(
-            experiment_run_config, plugin_registry=plugin_registry
+            experiment_run_config,
+            plugin_registry=plugin_registry,
+            realization=realization,
         )
+    else:
+        if args.realization is not None:
+            raise ert.exceptions.ExperimentError(
+                "Specifying realization index only works for local test runs."
+            )
 
     if experiment_run_config.experiment_config.type == "evaluation":
         ert3.engine.run(
@@ -304,10 +333,14 @@ def _run(
             workspace,
             args.experiment_name,
             local_test_run=args.local_test_run,
+            use_gui=args.gui,
         )
     elif experiment_run_config.experiment_config.type == "sensitivity":
         ert3.engine.run_sensitivity_analysis(
-            experiment_run_config, workspace, args.experiment_name
+            experiment_run_config,
+            workspace,
+            args.experiment_name,
+            use_gui=args.gui,
         )
 
 
@@ -327,7 +360,7 @@ def _record(workspace: Workspace, args: Any) -> None:
         parameters_config = workspace.load_parameters_config()
         collection = ert3.engine.sample_record(
             parameters_config,
-            args.parameter_group,
+            args.parameter,
             args.ensemble_size,
         )
         future = ert.storage.transmit_record_collection(
@@ -382,6 +415,11 @@ def _status(workspace: Workspace, args: Any) -> None:
 def _clean(workspace: Workspace, args: Any) -> None:
     assert args.sub_cmd == "clean"
     ert3.console.clean(workspace, args.experiment_names, args.all)
+
+
+def _visualise(args: Any) -> None:
+    assert args.sub_cmd == "vis"
+    os.system("ert vis")
 
 
 def _service_check(args: Any) -> None:
@@ -444,6 +482,9 @@ def _main() -> None:
         return
     elif args.sub_cmd == "service":
         _service(args)
+        return
+    elif args.sub_cmd == "vis":
+        _visualise(args)
         return
 
     # The remaining commands require an existing ert workspace:

@@ -26,9 +26,7 @@ import logging
 
 class ExportTool(Tool):
     def __init__(self, ert):
-        super().__init__(
-            "Export Data", "tools/export", resourceIcon("ide/table_export")
-        )
+        super().__init__("Export data", "tools/export", resourceIcon("share.svg"))
         self.__export_widget = None
         self.__dialog = None
         self.__exporter = Exporter(ert)
@@ -57,9 +55,7 @@ class ExportTool(Tool):
             QMessageBox.warning(
                 None,
                 "Failure",
-                """Export failed with the following message:\n{}""".format(
-                    str(usrwarning)
-                ),
+                f"Export failed with the following message:\n{usrwarning}",
                 QMessageBox.Ok,
             )
 

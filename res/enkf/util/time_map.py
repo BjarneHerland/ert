@@ -17,7 +17,6 @@ import errno
 import os
 
 from cwrap import BaseCClass
-from ecl.summary import EclSum
 from ecl.util.util import CTime
 
 from res import ResPrototype
@@ -34,8 +33,6 @@ class TimeMap(BaseCClass):
     _iget = ResPrototype("time_t time_map_iget(time_map, int)")
     _size = ResPrototype("int    time_map_get_size(time_map)")
     _try_update = ResPrototype("bool   time_map_try_update(time_map , int , time_t)")
-    _is_strict = ResPrototype("bool   time_map_is_strict( time_map )")
-    _set_strict = ResPrototype("void   time_map_set_strict( time_map , bool)")
     _lookup_time = ResPrototype("int    time_map_lookup_time( time_map , time_t)")
     _lookup_time_with_tolerance = ResPrototype(
         "int    time_map_lookup_time_with_tolerance( time_map , time_t , int , int)"
@@ -44,9 +41,6 @@ class TimeMap(BaseCClass):
         "int    time_map_lookup_days( time_map ,         double)"
     )
     _last_step = ResPrototype("int    time_map_get_last_step( time_map )")
-    _upgrade107 = ResPrototype(
-        "void   time_map_summary_upgrade107( time_map , ecl_sum )"
-    )
     _free = ResPrototype("void   time_map_free( time_map )")
 
     def __init__(self, filename=None):
@@ -59,27 +53,22 @@ class TimeMap(BaseCClass):
         if os.path.isfile(filename):
             self._load(filename)
         else:
-            raise IOError((errno.ENOENT, "File not found: %s" % filename))
+            raise IOError((errno.ENOENT, f"File not found: {filename}"))
 
     def fwrite(self, filename):
         self._save(filename)
 
     def fload(self, filename):
         """
-        Will load a timemap as a formatted file consisting of a list of dates: YYYY-MM-DD
+        Will load a timemap as a formatted file consisting of a list of dates:
+        YYYY-MM-DD
         """
         if os.path.isfile(filename):
             OK = self._fload(filename)
             if not OK:
-                raise Exception("Error occured when loading timemap from:%s" % filename)
+                raise Exception(f"Error occured when loading timemap from:{filename}")
         else:
-            raise IOError((errno.ENOENT, "File not found: %s" % filename))
-
-    def isStrict(self):
-        return self._is_strict()
-
-    def setStrict(self, strict):
-        return self._set_strict(strict)
+            raise IOError((errno.ENOENT, f"File not found: {filename}"))
 
     def getSimulationDays(self, step):
         """@rtype: double"""
@@ -88,7 +77,7 @@ class TimeMap(BaseCClass):
 
         size = len(self)
         if step < 0 or step >= size:
-            raise IndexError("Index out of range: 0 <= %d < %d" % (step, size))
+            raise IndexError(f"Index out of range: 0 <= {step} < {size}")
 
         return self._iget_sim_days(step)
 
@@ -99,7 +88,7 @@ class TimeMap(BaseCClass):
 
         size = len(self)
         if index < 0 or index >= size:
-            raise IndexError("Index out of range: 0 <= %d < %d" % (index, size))
+            raise IndexError(f"Index out of range: 0 <= {index} < {size}")
 
         return self._iget(index)
 
@@ -109,11 +98,7 @@ class TimeMap(BaseCClass):
     def update(self, index, time):
         if self._try_update(index, CTime(time)):
             return True
-        else:
-            if self.isStrict():
-                raise Exception("Tried to update with inconsistent value")
-            else:
-                return False
+        raise Exception("Tried to update with inconsistent value")
 
     def __iter__(self):
         cur = 0
@@ -123,10 +108,7 @@ class TimeMap(BaseCClass):
 
     def __contains__(self, time):
         index = self._lookup_time(CTime(time))
-        if index >= 0:
-            return True
-        else:
-            return False
+        return index >= 0
 
     def lookupTime(self, time, tolerance_seconds_before=0, tolerance_seconds_after=0):
         """Will look up the report step corresponding to input @time.
@@ -162,18 +144,14 @@ class TimeMap(BaseCClass):
         if index >= 0:
             return index
         else:
-            raise ValueError(
-                "The time:%s was not found in the time_map instance" % time
-            )
+            raise ValueError(f"The time:{time} was not found in the time_map instance")
 
     def lookupDays(self, days):
         index = self._lookup_days(days)
         if index >= 0:
             return index
         else:
-            raise ValueError(
-                "The days: %s was not found in the time_map instance" % days
-            )
+            raise ValueError(f"The days: {days} was not found in the time_map instance")
 
     def __len__(self):
         """@rtype: int"""
@@ -183,11 +161,7 @@ class TimeMap(BaseCClass):
         self._free()
 
     def __repr__(self):
-        ls = len(self)
-        la = self.getLastStep()
-        st = "strict" if self.isStrict() else "not strict"
-        cnt = "size = %d, last_step = %d, %s" % (ls, la, st)
-        return self._create_repr(cnt)
+        return self._create_repr(f"size = {len(self)}")
 
     def dump(self):
         """
@@ -197,9 +171,3 @@ class TimeMap(BaseCClass):
         for step, t in enumerate(self):
             step_list.append((step, t, self.getSimulationDays(step)))
         return step_list
-
-    def getLastStep(self):
-        return self._last_step()
-
-    def upgrade107(self, refcase: EclSum):
-        self._upgrade107(refcase)

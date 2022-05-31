@@ -26,13 +26,13 @@
 
 #include <ert/util/stringlist.h>
 
-#include <ert/config/config_parser.hpp>
 #include <ert/config/config_content.hpp>
+#include <ert/config/config_parser.hpp>
 
 #include <ert/analysis/analysis_module.hpp>
 
-#include <ert/enkf/enkf_types.hpp>
 #include <ert/enkf/analysis_iter_config.hpp>
+#include <ert/enkf/enkf_types.hpp>
 
 typedef struct analysis_config_struct analysis_config_type;
 
@@ -45,8 +45,6 @@ extern "C" bool analysis_config_has_module(const analysis_config_type *config,
                                            const char *module_name);
 void analysis_config_load_module(int ens_size, analysis_config_type *config,
                                  analysis_mode_enum mode);
-bool analysis_config_module_flag_is_set(const analysis_config_type *config,
-                                        analysis_module_flag_enum flag);
 
 std::vector<std::string>
 analysis_config_module_names(const analysis_config_type *config);
@@ -55,12 +53,10 @@ extern "C" const char *
 analysis_config_get_log_path(const analysis_config_type *config);
 void analysis_config_init(analysis_config_type *analysis,
                           const config_content_type *config);
-extern "C" PY_USED analysis_config_type *
-analysis_config_alloc_full(int ens_size, double alpha, bool rerun,
-                           int rerun_start, const char *log_path,
-                           double std_cutoff, bool stop_long_running,
-                           bool single_node_update, double global_std_scaling,
-                           int max_runtime, int min_realisations);
+extern "C" PY_USED analysis_config_type *analysis_config_alloc_full(
+    double alpha, bool rerun, int rerun_start, const char *log_path,
+    double std_cutoff, bool stop_long_running, bool single_node_update,
+    double global_std_scaling, int max_runtime, int min_realisations);
 analysis_config_type *analysis_config_alloc_default(void);
 extern "C" analysis_config_type *
 analysis_config_alloc_load(const char *user_config_file);
@@ -94,8 +90,6 @@ void analysis_config_set_single_node_update(analysis_config_type *config,
                                             bool single_node_update);
 bool analysis_config_get_single_node_update(const analysis_config_type *config);
 
-bool analysis_config_have_enough_realisations(
-    const analysis_config_type *config, int realisations, int ensemble_size);
 extern "C" void
 analysis_config_set_stop_long_running(analysis_config_type *config,
                                       bool stop_long_running);

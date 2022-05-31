@@ -26,7 +26,6 @@ class WorkflowJob(BaseCClass):
         "char*  workflow_job_get_internal_script_path(workflow_job)"
     )
     _get_function = ResPrototype("char*  workflow_job_get_function(workflow_job)")
-    _get_module = ResPrototype("char*  workflow_job_get_module(workflow_job)")
     _get_executable = ResPrototype("char*  workflow_job_get_executable(workflow_job)")
     _min_arg = ResPrototype("int  workflow_job_get_min_arg(workflow_job)")
     _max_arg = ResPrototype("int  workflow_job_get_max_arg(workflow_job)")
@@ -50,7 +49,7 @@ class WorkflowJob(BaseCClass):
             # NB: Observe argument reoredring.
             return cls._alloc_from_file(name, parser, config_file)
         else:
-            raise IOError("Could not open config_file:%s" % config_file)
+            raise IOError(f"Could not open config_file:{config_file}")
 
     def __init__(self, name, internal=True):
         c_ptr = self._alloc(name, internal)
@@ -79,10 +78,6 @@ class WorkflowJob(BaseCClass):
     def functionName(self):
         """@rtype: str"""
         return self._get_function()
-
-    def module(self):
-        """@rtype: str"""
-        return self._get_module()
 
     def executable(self):
         """@rtype: str"""
@@ -119,7 +114,7 @@ class WorkflowJob(BaseCClass):
             elif t == ContentTypeEnum.CONFIG_STRING:
                 result.append(str)
             else:
-                result.append(NoneType)
+                result.append(None)
 
         return result
 
@@ -143,15 +138,15 @@ class WorkflowJob(BaseCClass):
         min_arg = self.minimumArgumentCount()
         if min_arg > 0 and len(arguments) < min_arg:
             raise UserWarning(
-                "The job: %s requires at least %d arguments, %d given."
-                % (self.name(), min_arg, len(arguments))
+                f"The job: {self.name()} requires at least "
+                f"{min_arg} arguments, {len(arguments)} given."
             )
 
         max_arg = self.maximumArgumentCount()
         if 0 < max_arg < len(arguments):
             raise UserWarning(
-                "The job: %s can only have %d arguments, %d given."
-                % (self.name(), max_arg, len(arguments))
+                f"The job: {self.name()} can only have "
+                f"{max_arg} arguments, {len(arguments)} given."
             )
 
         if self.isInternalScript():
@@ -238,9 +233,6 @@ class WorkflowJob(BaseCClass):
             return False
 
         if self._max_arg() != other._max_arg():
-            return False
-
-        if self._get_module() != other._get_module():
             return False
 
         return True

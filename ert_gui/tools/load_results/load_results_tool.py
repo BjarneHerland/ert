@@ -22,10 +22,10 @@ from ert_gui.tools.load_results import LoadResultsPanel
 class LoadResultsTool(Tool):
     def __init__(self, facade):
         self.facade = facade
-        super(LoadResultsTool, self).__init__(
+        super().__init__(
             "Load results manually",
             "tools/load_manually",
-            resourceIcon("ide/table_import"),
+            resourceIcon("upload.svg"),
         )
         self.__import_widget = None
         self.__dialog = None
@@ -49,8 +49,13 @@ class LoadResultsTool(Tool):
         """A run path is considered valid if we can
         insert realisation and iteration numbers"""
         try:
+            # pylint: disable=pointless-statement
             self.facade.run_path % (0, 0)
-            self.facade.run_path % 0
             return True
         except TypeError:
-            return False
+            try:
+                # pylint: disable=pointless-statement
+                self.facade.run_path % 0
+                return True
+            except TypeError:
+                return False

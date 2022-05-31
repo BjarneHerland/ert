@@ -44,9 +44,11 @@ class FieldExportTest(ResTest):
 
             field_node = EnkfNode(fc)
             self.assertEqual(grid.get_num_active(), len(field_node))
+            # pylint: disable=pointless-statement,unsubscriptable-object
+            # pylint: disable=expression-not-assigned
             with self.assertRaises(IndexError):
                 field_node[grid.get_num_active()]
-            value0 = field_node[0]
+            field_node[0]
 
     def test_field_export(self):
         with ErtTestContext("export_test", self.config_file) as test_context:

@@ -11,17 +11,13 @@ pybind11_add_module(
   res_util/memory.cpp
   res_util/es_testdata.cpp
   res_util/file_utils.cpp
-  res_util/arg_pack.cpp
   res_util/ui_return.cpp
   res_util/subst_list.cpp
   res_util/subst_func.cpp
-  res_util/matrix.cpp
   res_util/template.cpp
   res_util/path_fmt.cpp
   res_util/res_env.cpp
-  res_util/res_portability.cpp
   res_util/block_fs.cpp
-  res_util/thread_pool.cpp
   res_util/template_loop.cpp # Highly deprecated
   python/init.cpp
   python/logging.cpp
@@ -31,6 +27,7 @@ pybind11_add_module(
   python/enkf_fs_keyword_data.cpp
   python/enkf_defaults.cpp
   python/enkf_fs_summary_data.cpp
+  python/model_callbacks.cpp
   config/conf_util.cpp
   config/conf.cpp
   config/conf_data.cpp
@@ -129,11 +126,6 @@ pybind11_add_module(
   enkf/gen_obs.cpp
   enkf/hook_manager.cpp
   enkf/hook_workflow.cpp
-  enkf/local_config.cpp
-  enkf/local_ministep.cpp
-  enkf/local_obsdata.cpp
-  enkf/local_obsdata_node.cpp
-  enkf/local_updatestep.cpp
   enkf/meas_data.cpp
   enkf/misfit_ensemble.cpp
   enkf/misfit_member.cpp

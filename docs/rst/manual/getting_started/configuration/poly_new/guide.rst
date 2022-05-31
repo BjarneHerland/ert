@@ -15,7 +15,7 @@ how to set up a project that uses a polynomial evaluation as the
 Minimal config
 --------------
 To test that our setup is working, we will create the minimal configuration we
-need to launch the Graphical user interface and run an empty experiment that
+need to launch the GUI and run an empty experiment that
 does nothing. First create a folder with the name ``poly_example``.
 
 Create a config
@@ -33,14 +33,10 @@ Then create a file ``poly.ert`` inside the folder with the following content:
 :ref:`QUEUE_SYSTEM <QUEUE_SYSTEM>`
     Finally, we must specify where each simulation is to run, which is handled
     by the queue system. ``LOCAL`` means that everything will run on you local
-    computer. Other possibilities are ``LSF`` and ``TORQUE``, which are queuing
-    systems for remote execution. To use these you must have an environment
-    available where this is supported and configured.
+    computer. See :ref:`QUEUE_SYSTEM <QUEUE_SYSTEM>` for other options.
 
 Launch the user interface
 *************************
-
-#Missing installation steps, create virtual environment
 
 Navigate to this folder on your command line and run ERT::
 
@@ -51,13 +47,12 @@ is expected, so click OK. You will see the main ERT user interface window.
 
 .. image:: minimal/ert.png
 
-In the main window you will see some elements, some of which are irrelevant to
-this guide. The ones we care about are:
+The elements relevant to this guide are:
 
-* Simulation mode: Lets you select which algorithm to run (since we don't have a complete setup yet, we can only choose ensemble experiment or single realization).
-* Runpath: shows where each realization of the experiment will be executed. The `%d` in this path is replaced by the number of the realization. Here we see a default used, since we have not configured the runpath yet.
-* The Configuration summary will show us what we have configured, and is empty at this moment.
-* The Start Simulation button will start an experiment with the current configuration and simulation mode.
+* Simulation mode: List of available algorithms. Only a limited set is available since we are not done configuring ERT.
+* Runpath: Configurable path where each realization of the experiment will be executed. The `%d` will be replaced by the number of the realization.
+* Configuration summary: Empty by default, but will show us what has been configured.
+* Start simulation: Start an experiment with the current configuration and simulation mode.
 
 Run an empty experiment
 ***********************
@@ -68,7 +63,7 @@ experiment will run, but since we haven't configured a forward model, only an
 empty experiment is executed.
 
 A new window will appear called "Simulations". Here you can see the status of
-the experiment. If you press "Details", you can see status of each running
+the experiment. If you press "Show Details", you can see the status of each running
 realization.
 
 .. image:: minimal/simulations.png
@@ -84,7 +79,7 @@ Inspect the results
 *******************
 Now in the project folder there should be two new folders, ``simulations`` and
 ``storage``. Storage is ERT's internal data, and should not be touched. The
-``simulations`` folder is created based on the RUNPATH configuration. If you
+``simulations`` folder is created based on the :ref:`RUNPATH <runpath>` configuration. If you
 open this folder you will see one folder for each realization, labeled
 ``realization0``, ``realization1``, etc. Inside each of these folders is where
 each realization has run. If you look inside, you will see a few files that ERT
@@ -156,8 +151,9 @@ to specify the executable name. Create a file called ``POLY_EVAL`` with the
 following content:
 
     .. include:: with_simple_script/POLY_EVAL
+        :code:
 
-Now we must refer to this job definition in the configuration. Add the line::
+Now we must refer to this job definition in the configuration. Add the lines::
 
     INSTALL_JOB poly_eval POLY_EVAL
     SIMULATION_JOB poly_eval
@@ -180,12 +176,11 @@ Before we run again delete the old output files by running the command::
 
     rm -r simulations
 
-Now start up ERT by again running ``ert gui poly.ert``. The main window should
-now reflect the new runpath:
+Start ERT by again running ``ert gui poly.ert``.
 
     .. image:: with_simple_script/ert.png
 
-You can see in the configuration view that there is now a forward model. And
+You can see in the configuration summary view that there is now a forward model. And
 you can also see that the runpath has changed from the default to what we
 specified in the config. Now run the ensemble experiment again like you did
 earlier. After it has finished, close all ERT windows.
@@ -224,29 +219,29 @@ the files::
     102
 
 It is of course not very useful that all the realization simulations evaluate
-the same mode. In the next step we will use ERT to automatically sample
+the same model. In the next step we will use ERT to automatically sample
 parameters for the realizations (i.e. coefficients for the polynomials), and
 read them in the ``poly_eval.py`` script.
 
 Creating parameters
 -------------------
 In order to set up parameters in ERT, we need to create a file with description
-of the distribution of the parameters. This is called the priors. Then we
+of the distribution of the parameters. These are called the priors. Then we
 specify where ERT can find this file, and how to instantiate it into each
-simulation runpath via templating mechanism. The templating mechanism lets you
+simulation runpath via a templating mechanism. The templating mechanism lets you
 specify a file in the format you desire, in which ERT will put the parameters
 by replacing certain placeholders with the actual parameters sampled from the
 distributions.
 
 Adding prior distributions
 **************************
-To description the prior distributions, create a file ``coeff_priors`` with the
+To define the prior distributions, create a file ``coeff_priors`` with the
 following content:
 
     .. include:: with_parameters/coeff_priors
         :code:
 
-In this file we list each parameter line by line. The first part of a line is
+Each parameter is specified on a separate line. The first part of a line is
 the name of the parameter. Following this is the type of distribution we want
 to sample the parameter from. Here we choose a uniform distribution. Following
 the distribution type, are the arguments describing the distribution. In the
@@ -256,13 +251,13 @@ of the distribution. Other distributions have different arguments.
 Adding a template
 *****************
 Then we create a template into which the samples from the distributions will be
-put. Create a file called ``coeff.tmpl`` and put the following content:
+put. Create a file called ``coeff.tmpl`` and add the following:
 
     .. include:: with_parameters/coeff.tmpl
         :code:
 
 The text within angle brackets (``<`` and ``>``), will be replaced by the
-samples from the corresponding distribution from the coeff_priors file. The
+samples from the corresponding distribution from the ``coeff_priors`` file. The
 result will be put in a file with a name we specify in the configuration.
 
 Configuring the parameter set and and corresponding template
@@ -282,7 +277,7 @@ do this.
 Reading parameters in simulation script
 ***************************************
 We need to change the simulation script so that it reads the ``coeffs.json``
-file that ERT writes the sampled parameters in. Change the script
+file that ERT writes the sampled parameters in to. Change the script
 ``poly_eval.py`` to the following:
 
     .. literalinclude:: with_parameters/poly_eval.py
@@ -293,8 +288,8 @@ Let us also increase the number of realizations now, so that we get a larger
 sample size, and thus have more data to inspect in the graphical user
 interface.
 
-Increase the ``NUM_REALIZATIONS`` value to ``100``. This will make us run 100
-simulations. We can also specify that we want to run more simultaneous
+Increase the ``NUM_REALIZATIONS`` value to ``100``, which tells ERT how many simulations to run. 
+We can also specify that we want to run more simultaneous
 simulations, so it will run faster. This is configured in the queue system by
 specifying a :ref:`queue option <queue_option>` ``MAX_RUNNING`` for the
 ``LOCAL`` queue, like this: ``QUEUE_OPTION LOCAL MAX_RUNNING 50``.
@@ -399,19 +394,19 @@ The observations need to relate to some results of the simulation, so that the
 algorithms can compare them. We have some observations from the polynomial that
 were measured at the points 0, 2, 4, 6 and 8. The indices here happen to align
 with the x values of the polynomial evaluation, but this is incidental. The
-indices says where the observations in the file match the result indices. Put
+indices say where the observations in the file match the result indices. Put
 the following observations in the file ``poly_obs_data.txt``:
 
     .. literalinclude:: with_observations/poly_obs_data.txt
 
-The observations are written one for each line, with the first number
+There is one observation per line, with the first number
 signifying the observed value, and the second number signifying the uncertainty.
 
-Now let's describe the observations we have to ERT. This is done with the
-:ref:`OBS_CONFIG <obs_config>` keyword, which refers to a file in which we must
-:ref:`OBS_CONFIG <obs_config>` keyword, which refers to a file in which we must
-describe the observations. First, make a file called ``observations`` in the
-project folder with the following content:
+We make ERT aware of observations using the :ref:`OBS_CONFIG <obs_config>` keyword, 
+which refers to a file where the ``GENERAL_OBSERVATION`` keyword is used to define observations.
+
+First, make a file called ``observations`` in the project folder 
+with the following content:
 
     .. literalinclude:: with_observations/observations
 
@@ -440,10 +435,14 @@ these lines::
 The :ref:`OBS_CONFIG <obs_config>` line simply tells ERT that there is a
 description of an observation set in the file ``observations``. The
 :ref:`TIME_MAP <time_map>` is legacy, and not used anymore, but it is still
-required to create a `time_map` file (e.g. containing 00/00/0000) when 
+required to create a `time_map` file (e.g. containing 2006-06-01) when 
 we have an observation set.
 
-If you now launch ERT again you will now be able to choose different simulation
+The final config file should look like this:
+
+.. literalinclude :: with_observations/poly_final.ert
+
+If you now launch ERT you will be able to choose different simulation
 modes. Choose Ensemble Smoother, and start the simulations. When it is
 running you will see that when the first set of realizations is done, a new tab
 is created, where another set of realizations is visualized. This new set runs
@@ -462,6 +461,20 @@ colours. You should now see the updated values are fitting better to the
 observations, as in the picture below:
 
 .. image:: with_observations/plot_obs.png
+
+It is also instructive to look at the updated estimates of the parameters
+`a`, `b` and `c`.
+Recall that we defined uniform priors and note how ERT's updating algorithms reduce
+the uncertainty of each parameter:
+
+.. image:: with_observations/coeff_a.png
+
+.. image:: with_observations/coeff_b.png
+
+.. image:: with_observations/coeff_c.png
+
+The updated parameters are not perfect, but they are better than the priors.
+In order to improve the new parameter-estimates, we would need more data.
 
 Now you know the basics ERT configuration. There are many more details in the
 rest of the documentation which you can refer to when you need.

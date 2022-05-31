@@ -1,5 +1,16 @@
+from pandas import DataFrame
+from httpx import RequestError
 from qtpy.QtCore import Qt
-from qtpy.QtWidgets import QMainWindow, QDockWidget, QTabWidget, QWidget, QVBoxLayout
+from qtpy.QtWidgets import (
+    QMainWindow,
+    QDockWidget,
+    QTabWidget,
+    QWidget,
+    QVBoxLayout,
+    QMessageBox,
+)
+import os
+import logging
 
 from ert_gui.plottery.plots.ccsp import CrossCaseStatisticsPlot
 from ert_gui.plottery.plots.distribution import DistributionPlot
@@ -14,28 +25,42 @@ from ert_gui.tools.plot import DataTypeKeysWidget, CaseSelectionWidget, PlotWidg
 from ert_gui.tools.plot.customize import PlotCustomizer
 
 from ert_gui.tools.plot.plot_api import PlotApi
-from ert_shared.libres_facade import LibresFacade
 
-CROSS_CASE_STATISTICS = "Cross Case Statistics"
+CROSS_CASE_STATISTICS = "Cross case statistics"
 DISTRIBUTION = "Distribution"
 GAUSSIAN_KDE = "Gaussian KDE"
 ENSEMBLE = "Ensemble"
 HISTOGRAM = "Histogram"
 STATISTICS = "Statistics"
 
+logger = logging.getLogger(__name__)
+
 
 class PlotWindow(QMainWindow):
-    def __init__(self, ert, config_file, parent):
+    def __init__(self, config_file, parent):
         QMainWindow.__init__(self, parent)
-
-        self._api = PlotApi(LibresFacade(ert))
 
         self.setMinimumWidth(850)
         self.setMinimumHeight(650)
 
-        self.setWindowTitle("Plotting - {}".format(config_file))
+        self.setWindowTitle(f"Plotting - {config_file}")
         self.activateWindow()
-        self._key_definitions = self._api.all_data_type_keys()
+        try:
+            self._api = PlotApi()
+            self._key_definitions = self._api.all_data_type_keys()
+        except (RequestError, TimeoutError) as e:
+            logger.exception(e)
+            msg = f"{e}"
+            if "None of the URLs provided" in str(e):
+                msg = (
+                    f"{e} \n Remove storage_server.json from {os.getcwd()},"
+                    f" and restart the application."
+                )
+
+            QMessageBox.critical(self, "Request Failed", msg)
+
+            self._key_definitions = []
+
         self._plot_customizer = PlotCustomizer(self, self._key_definitions)
 
         self._plot_customizer.settingsChanged.connect(self.keySelected)
@@ -60,10 +85,23 @@ class PlotWindow(QMainWindow):
         self.addPlotWidget(GAUSSIAN_KDE, GaussianKDEPlot())
         self.addPlotWidget(DISTRIBUTION, DistributionPlot())
         self.addPlotWidget(CROSS_CASE_STATISTICS, CrossCaseStatisticsPlot())
-
         self._central_tab.currentChanged.connect(self.currentPlotChanged)
+        self._prev_tab_widget = None
 
-        cases = self._api.get_all_cases_not_running()
+        try:
+            cases = self._api.get_all_cases_not_running()
+        except (RequestError, TimeoutError) as e:
+            logger.exception(e)
+            msg = f"{e}"
+            if "None of the URLs provided" in str(e):
+                msg = (
+                    f"{e} \n Remove storage_server.json from {os.getcwd()},"
+                    f" and restart the application."
+                )
+
+            QMessageBox.critical(self, "Request Failed", msg)
+            cases = []
+
         case_names = [case["name"] for case in cases if not case["hidden"]]
 
         self._data_type_keys_widget = DataTypeKeysWidget(self._key_definitions)
@@ -85,22 +123,41 @@ class PlotWindow(QMainWindow):
 
         for plot_widget in self._plot_widgets:
             index = self._central_tab.indexOf(plot_widget)
-
             if (
                 index == self._central_tab.currentIndex()
                 and plot_widget._plotter.dimensionality == key_def["dimensionality"]
             ):
                 self._updateCustomizer(plot_widget)
                 cases = self._case_selection_widget.getPlotCaseNames()
-                case_to_data_map = {
-                    case: self._api.data_for_key(case, key) for case in cases
-                }
-                if len(key_def["observations"]) > 0 and cases:
-                    observations = self._api.observations_for_obs_keys(
-                        cases[0], key_def["observations"]
-                    )
-                else:
-                    observations = None
+                case_to_data_map = {}
+                for case in cases:
+                    try:
+                        case_to_data_map[case] = self._api.data_for_key(case, key)
+                    except (RequestError, TimeoutError) as e:
+                        logger.exception(e)
+                        msg = f"{e}"
+                        if "None of the URLs provided" in str(e):
+                            msg = (
+                                f"{e} \n Remove storage_server.json from {os.getcwd()},"
+                                f" and restart the application."
+                            )
+
+                        QMessageBox.critical(self, "Request Failed", msg)
+
+                observations = None
+                if key_def["observations"] and cases:
+                    try:
+                        observations = self._api.observations_for_key(cases[0], key)
+                    except (RequestError, TimeoutError) as e:
+                        logger.exception(e)
+                        msg = f"{e}"
+                        if "None of the URLs provided" in str(e):
+                            msg = (
+                                f"{e} \n Remove storage_server.json from {os.getcwd()},"
+                                f" and restart the application."
+                            )
+
+                        QMessageBox.critical(self, "Request Failed", msg)
 
                 plot_config = PlotConfig.createCopy(
                     self._plot_customizer.getPlotConfig()
@@ -108,11 +165,26 @@ class PlotWindow(QMainWindow):
                 plot_config.setTitle(key)
                 plot_context = PlotContext(plot_config, cases, key)
 
-                if key_def["has_refcase"]:
-                    plot_context.refcase_data = self._api.refcase_data(key)
-
                 case = plot_context.cases()[0] if plot_context.cases() else None
-                plot_context.history_data = self._api.history_data(key, case)
+
+                # Check if key is a history key.
+                # If it is it already has the data it needs
+                if str(key).endswith("H") or "H:" in str(key):
+                    plot_context.history_data = DataFrame()
+                else:
+                    try:
+                        plot_context.history_data = self._api.history_data(key, case)
+                    except (RequestError, TimeoutError) as e:
+                        logger.exception(e)
+                        msg = f"{e}"
+                        if "None of the URLs provided" in str(e):
+                            msg = (
+                                f"{e} \n Remove storage_server.json from {os.getcwd()},"
+                                f" and restart the application."
+                            )
+
+                        QMessageBox.critical(self, "Request Failed", msg)
+                        plot_context.history_data = None
 
                 plot_context.log_scale = key_def["log_scale"]
 
@@ -166,7 +238,7 @@ class PlotWindow(QMainWindow):
         allowed_areas=Qt.AllDockWidgetAreas,
     ):
         dock_widget = QDockWidget(name)
-        dock_widget.setObjectName("%sDock" % name)
+        dock_widget.setObjectName(f"{name}Dock")
         dock_widget.setWidget(widget)
         dock_widget.setAllowedAreas(allowed_areas)
         dock_widget.setFeatures(
@@ -186,13 +258,23 @@ class PlotWindow(QMainWindow):
             for widget in self._plot_widgets
             if widget._plotter.dimensionality == key_def["dimensionality"]
         ]
-        self._central_tab.currentChanged.disconnect()
+
+        current_widget = self._central_tab.currentWidget()
         for plot_widget in self._plot_widgets:
             self._central_tab.setTabEnabled(
                 self._central_tab.indexOf(plot_widget), plot_widget in available_widgets
             )
-        self._central_tab.currentChanged.connect(self.currentPlotChanged)
-        self._central_tab.setCurrentWidget(available_widgets[0])
+
+        # Remember which tab widget was selected when switching between
+        # both same and different data-types.
+        if current_widget in available_widgets:
+            self._central_tab.setCurrentWidget(current_widget)
+        else:
+            if self._prev_tab_widget is None:
+                self._central_tab.setCurrentWidget(available_widgets[0])
+            else:
+                self._central_tab.setCurrentWidget(self._prev_tab_widget)
+            self._prev_tab_widget = current_widget
 
         self.currentPlotChanged()
 

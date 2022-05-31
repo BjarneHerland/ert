@@ -19,11 +19,11 @@
 
 #include <ert/config/config_content.hpp>
 
-#include <ert/enkf/enkf_defaults.hpp>
 #include <ert/enkf/config_keys.hpp>
-#include <ert/enkf/subst_config.hpp>
+#include <ert/enkf/enkf_defaults.hpp>
 #include <ert/enkf/model_config.hpp>
 #include <ert/enkf/runpath_list.hpp>
+#include <ert/enkf/subst_config.hpp>
 
 namespace fs = std::filesystem;
 
@@ -112,10 +112,6 @@ void subst_config_add_subst_kw(subst_config_type *subst_config, const char *key,
                                const char *value) {
     subst_list_append_copy(subst_config->subst_list, key, value,
                            "Supplied by the user in the configuration file.");
-}
-
-void subst_config_clear(subst_config_type *subst_config) {
-    subst_list_clear(subst_config->subst_list);
 }
 
 static void subst_config_install_num_cpu(subst_config_type *subst_config,

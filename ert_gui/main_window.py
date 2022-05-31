@@ -2,7 +2,7 @@ import functools
 
 import webbrowser
 
-from qtpy.QtCore import QSettings, Qt
+from qtpy.QtCore import QSettings, Qt, Signal
 from qtpy.QtWidgets import (
     QMainWindow,
     QWidget,
@@ -17,12 +17,14 @@ from ert_shared.plugins import ErtPluginManager
 
 
 class GertMainWindow(QMainWindow):
+    close_signal = Signal()
+
     def __init__(self, config_file):
         QMainWindow.__init__(self)
         self.tools = {}
 
         self.resize(300, 700)
-        self.setWindowTitle("ERT - {}".format(config_file))
+        self.setWindowTitle(f"ERT - {config_file}")
 
         self.__main_widget = None
 
@@ -55,7 +57,7 @@ class GertMainWindow(QMainWindow):
         allowed_areas=Qt.AllDockWidgetAreas,
     ):
         dock_widget = QDockWidget(name)
-        dock_widget.setObjectName("%sDock" % name)
+        dock_widget.setObjectName(f"{name}Dock")
         dock_widget.setWidget(widget)
         dock_widget.setAllowedAreas(allowed_areas)
 
@@ -74,8 +76,6 @@ class GertMainWindow(QMainWindow):
             tool_button.setPopupMode(QToolButton.InstantPopup)
 
     def __createMenu(self):
-        file_menu = self.menuBar().addMenu("&File")
-        file_menu.addAction("Close", self.close)
         self.__view_menu = self.menuBar().addMenu("&View")
         self.__help_menu = self.menuBar().addMenu("&Help")
         """:type: QMenu"""
@@ -102,6 +102,7 @@ class GertMainWindow(QMainWindow):
         # Use QT settings saving mechanism
         # settings stored in ~/.config/Equinor/ErtGui.conf
         self.__saveSettings()
+        self.close_signal.emit()
         QMainWindow.closeEvent(self, event)
 
     def __fetchSettings(self):

@@ -1,3 +1,5 @@
+from typing import List
+
 from res.job_queue import JobQueueManager, ForwardModelStatus
 from res.enkf import ErtRunContext, EnkfSimulationRunner
 from res.enkf.enums import EnkfRunType, HookRuntime
@@ -6,7 +8,7 @@ from time import sleep
 
 
 class SimulationContext:
-    def __init__(self, ert, sim_fs, mask, itr, case_data):
+    def __init__(self, ert, sim_fs, mask: List[bool], itr, case_data):
         self._ert = ert
         """ :type: res.enkf.EnKFMain """
         max_runtime = ert.analysisConfig().get_max_runtime()
@@ -47,7 +49,7 @@ class SimulationContext:
 
     def get_run_args(self, iens):
         """
-        raises an  exception if no iens simulation found
+        raises an exception if no iens simulation found
 
         :param iens: realization number
         :return: run_args for the realization
@@ -55,7 +57,7 @@ class SimulationContext:
         for run_arg in self._run_context:
             if run_arg is not None and run_arg.iens == iens:
                 return run_arg
-        raise KeyError("No such simulation: %s" % iens)
+        raise KeyError(f"No such realization: {iens}")
 
     def _run_simulations_simple_step(self):
         sim_thread = Thread(
@@ -66,8 +68,8 @@ class SimulationContext:
         sim_thread.start()
         return sim_thread
 
-    def __len__(self):
-        return self._mask.count()
+    def __len__(self) -> int:
+        return len(self._mask)
 
     def isRunning(self):
         # TODO: Should separate between running jobs and having loaded all data
@@ -117,9 +119,10 @@ class SimulationContext:
         numSucc = self.getNumSuccess()
         numFail = self.getNumFailed()
         numWait = self.getNumWaiting()
-        fmt = "%s, #running = %d, #success = %d, #failed = %d, #waiting = %d"
-        fmt = fmt % (running, numRunn, numSucc, numFail, numWait)
-        return "SimulationContext(%s)" % fmt
+        return (
+            f"SimulationContext({running}, #running = {numRunn}, "
+            f"#success = {numSucc}, #failed = {numFail}, #waiting = {numWait})"
+        )
 
     def get_sim_fs(self):
         return self._run_context.get_sim_fs()
@@ -152,7 +155,7 @@ class SimulationContext:
                 (job2.name, job2.start_time, job2.end_time, job2.status, job2.error_msg),
                 (jobN.name, jobN.start_time, jobN.end_time, jobN.status, jobN.error_msg)
             ]
-        """
+        """  # noqa
         run_arg = self.get_run_args(iens)
 
         try:

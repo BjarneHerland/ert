@@ -1,10 +1,9 @@
 from .observations import plotObservations
 from .plot_tools import PlotTools
 from ert_gui.plottery.plots.history import plotHistory
-from ert_gui.plottery.plots.refcase import plotRefcase
 
 
-class EnsemblePlot(object):
+class EnsemblePlot:
     def __init__(self):
         self.dimensionality = 2
 
@@ -24,7 +23,7 @@ class EnsemblePlot(object):
             data = data.T
 
             if not data.empty:
-                if not data.index.is_all_dates:
+                if data.index.inferred_type != "datetime64":
                     plot_context.deactivateDateSupport()
                     plot_context.x_axis = plot_context.INDEX_AXIS
 
@@ -33,7 +32,6 @@ class EnsemblePlot(object):
                 )
                 config.nextColor()
 
-        plotRefcase(plot_context, axes)
         plotObservations(observation_data, plot_context, axes)
         plotHistory(plot_context, axes)
 
@@ -65,10 +63,9 @@ class EnsemblePlot(object):
                 y=data.to_numpy(),
                 color=style.color,
                 alpha=style.alpha,
-                marker=style.marker,
-                linestyle=style.line_style,
                 linewidth=style.width,
                 markersize=style.size,
+                fmt=f"{style.marker}{style.line_style}",
             )
         else:
             lines = axes.plot(

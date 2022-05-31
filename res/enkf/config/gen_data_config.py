@@ -22,7 +22,7 @@ class GenDataConfig(BaseCClass):
     TYPE_NAME = "gen_data_config"
 
     _alloc = ResPrototype(
-        "void* gen_data_config_alloc_GEN_DATA_result( char* , gen_data_file_format_type)",
+        "void* gen_data_config_alloc_GEN_DATA_result( char* , gen_data_file_format_type)",  # noqa
         bind=False,
     )
     _free = ResPrototype("void  gen_data_config_free( gen_data_config )")
@@ -74,8 +74,8 @@ class GenDataConfig(BaseCClass):
         data_size = self._get_data_size(report_step)
         if data_size < 0:
             raise ValueError(
-                "No data has been loaded for %s at report step:%d "
-                % (self.getName(), report_step)
+                f"No data has been loaded for {self.getName()} "
+                f"at report step:{report_step} "
             )
         else:
             return data_size
@@ -102,14 +102,10 @@ class GenDataConfig(BaseCClass):
         self._free()
 
     def __repr__(self):
-        nm = self.name()
-        tk = self.get_template_key()
-        iz = self.get_initial_size()
-        return "GenDataConfig(name = %s, template_key = %s, initial_size = %d) %s" % (
-            nm,
-            tk,
-            iz,
-            self._ad_str(),
+        return (
+            f"GenDataConfig(name = {self.name()}, "
+            f"template_key = {self.get_template_key()}, "
+            f"initial_size = {self.get_initial_size()}) {self._ad_str()}"
         )
 
     def hasReportStep(self, report_step):

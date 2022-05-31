@@ -67,34 +67,34 @@ def setenv(var, value):
 # Set up the full LSF environment - based onf LSF_HOME
 LSF_HOME = os.getenv("LSF_HOME")
 if LSF_HOME:
-    setenv("LSF_BINDIR", "%s/bin" % LSF_HOME)
-    setenv("LSF_LIBDIR", "%s/lib" % LSF_HOME)
-    setenv("XLSF_UIDDIR", "%s/lib/uid" % LSF_HOME)
-    setenv("LSF_SERVERDIR", "%s/etc" % LSF_HOME)
-    setenv("LSF_ENVDIR", "%s/conf" % LSF_HOME)  # This is wrong: Equinor: /prog/LSF/conf
+    setenv("LSF_BINDIR", f"{LSF_HOME}/bin")
+    setenv("LSF_LIBDIR", f"{LSF_HOME}/lib")
+    setenv("XLSF_UIDDIR", f"{LSF_HOME}/lib/uid")
+    setenv("LSF_SERVERDIR", f"{LSF_HOME}/etc")
+    setenv("LSF_ENVDIR", f"{LSF_HOME}/conf")  # This is wrong: Equinor: /prog/LSF/conf
 
-from .driver import Driver, LocalDriver, LSFDriver, QueueDriverEnum, RSHDriver
-from .environment_varlist import EnvironmentVarlist
-from .ert_plugin import CancelPluginException, ErtPlugin
-from .ert_script import ErtScript
-from .ext_job import ExtJob
-from .ext_joblist import ExtJoblist
-from .external_ert_script import ExternalErtScript
-from .forward_model import ForwardModel
-from .forward_model_status import ForwardModelJobStatus, ForwardModelStatus
-from .function_ert_script import FunctionErtScript
-from .job import Job
-from .job_queue_manager import JobQueueManager
-from .job_queue_node import JobQueueNode
-from .job_status_type_enum import JobStatusType
-from .job_submit_status_type_enum import JobSubmitStatusType
-from .queue import JobQueue
-from .run_status_type_enum import RunStatusType
-from .thread_status_type_enum import ThreadStatus
-from .workflow import Workflow
-from .workflow_job import WorkflowJob
-from .workflow_joblist import WorkflowJoblist
-from .workflow_runner import WorkflowRunner
+from .driver import Driver, LocalDriver, LSFDriver, QueueDriverEnum, RSHDriver  # noqa
+from .environment_varlist import EnvironmentVarlist  # noqa
+from .ert_plugin import CancelPluginException, ErtPlugin  # noqa
+from .ert_script import ErtScript  # noqa
+from .ext_job import ExtJob  # noqa
+from .ext_joblist import ExtJoblist  # noqa
+from .external_ert_script import ExternalErtScript  # noqa
+from .forward_model import ForwardModel  # noqa
+from .forward_model_status import ForwardModelJobStatus, ForwardModelStatus  # noqa
+from .function_ert_script import FunctionErtScript  # noqa
+from .job import Job  # noqa
+from .job_queue_manager import JobQueueManager  # noqa
+from .job_queue_node import JobQueueNode  # noqa
+from .job_status_type_enum import JobStatusType  # noqa
+from .job_submit_status_type_enum import JobSubmitStatusType  # noqa
+from .queue import JobQueue  # noqa
+from .run_status_type_enum import RunStatusType  # noqa
+from .thread_status_type_enum import ThreadStatus  # noqa
+from .workflow import Workflow  # noqa
+from .workflow_job import WorkflowJob  # noqa
+from .workflow_joblist import WorkflowJoblist  # noqa
+from .workflow_runner import WorkflowRunner  # noqa
 
 __all__ = [
     "JobStatusType",

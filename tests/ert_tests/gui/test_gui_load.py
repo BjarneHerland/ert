@@ -8,6 +8,7 @@ from qtpy.QtCore import Qt
 
 import ert_gui
 from ert_gui.ertnotifier import ErtNotifier
+from ert_gui.ertwidgets.message_box import ErtMessageBox
 from ert_gui.gert_main import _start_window, run_gui
 
 
@@ -27,7 +28,6 @@ def patch_enkf_main(monkeypatch, tmpdir):
     res_config_mock = Mock()
     type(res_config_mock).config_path = PropertyMock(return_value=tmpdir.strpath)
     facade_mock = Mock()
-    facade_mock.get_analysis_module_names.return_value = []
     facade_mock.get_ensemble_size.return_value = 1
     facade_mock.get_number_of_iterations.return_value = 1
     monkeypatch.setattr(
@@ -53,10 +53,12 @@ def patch_enkf_main(monkeypatch, tmpdir):
         Mock(return_value=["test"]),
     )
 
+    def patched_mask_to_rangestring(mask):
+        return ""
+
     monkeypatch.setattr(
-        ert_gui.ertwidgets.models.activerealizationsmodel,
-        "mask_to_rangestring",
-        Mock(return_value=""),
+        "ert.ensemble_evaluator.activerange.mask_to_rangestring.__code__",
+        patched_mask_to_rangestring.__code__,
     )
 
     monkeypatch.setattr(
@@ -119,7 +121,7 @@ def test_gui_load(monkeypatch, tmpdir, qtbot, patch_enkf_main):
     reason="PyQt4 with PYTEST_QT_API env. variable != pyqt4v2",
 )
 @pytest.mark.usefixtures("patch_enkf_main")
-def test_gui_full(monkeypatch, tmpdir, qapp):
+def test_gui_full(monkeypatch, tmpdir, qapp, mock_start_server):
     with tmpdir.as_cwd():
         args_mock = Mock()
         type(args_mock).config = PropertyMock(return_value="config.ert")
@@ -128,13 +130,14 @@ def test_gui_full(monkeypatch, tmpdir, qapp):
             lambda: None
         )  # exec_ starts the event loop, and will stall the test.
         monkeypatch.setattr(ert_gui.gert_main, "QApplication", Mock(return_value=qapp))
-        gui = run_gui(args_mock)
+        run_gui(args_mock)
+        mock_start_server.assert_called_once_with(res_config="config.ert")
 
 
 def test_gui_iter_num(monkeypatch, tmpdir, qtbot, patch_enkf_main):
     # won't run simulations so we mock it and test whether "iter_num" is in arguments
     def _assert_iter_in_args(panel):
-        assert "iter_num" in panel.getSimulationArguments()
+        assert panel.getSimulationArguments().iter_num == 10
 
     args_mock = Mock()
     type(args_mock).config = PropertyMock(return_value="config.ert")
@@ -164,4 +167,11 @@ def test_gui_iter_num(monkeypatch, tmpdir, qtbot, patch_enkf_main):
 
     start_simulation = gui.findChild(qtpy.QtWidgets.QWidget, name="start_simulation")
     qtbot.mouseClick(start_simulation, Qt.LeftButton)
-    assert sim_panel.getSimulationArguments()["iter_num"] == 10
+    assert sim_panel.getSimulationArguments().iter_num == 10
+
+
+def test_dialog(qtbot):
+    msg = ErtMessageBox("Simulations failed!", "failed_msg\nwith two lines")
+    qtbot.addWidget(msg)
+    assert msg.label_text.text() == "Simulations failed!"
+    assert msg.details_text.toPlainText() == "failed_msg\nwith two lines"

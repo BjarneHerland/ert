@@ -1,4 +1,5 @@
-class PlotStyle(object):
+class PlotStyle:
+    # pylint: disable=too-many-instance-attributes, too-many-arguments
     def __init__(
         self,
         name,
@@ -10,7 +11,8 @@ class PlotStyle(object):
         size=7.5,
         enabled=True,
     ):
-        super(PlotStyle, self).__init__()
+        super().__init__()
+
         self.name = name
         self.color = color
         self.alpha = alpha
@@ -64,11 +66,7 @@ class PlotStyle(object):
 
     @alpha.setter
     def alpha(self, alpha):
-        if alpha > 1.0:
-            alpha = 1.0
-        if alpha < 0.0:
-            alpha = 0.0
-        self._alpha = alpha
+        self._alpha = max(min(alpha, 1.0), 0.0)
 
     @property
     def marker(self):
@@ -92,9 +90,7 @@ class PlotStyle(object):
 
     @width.setter
     def width(self, width):
-        if width < 0.0:
-            width = 0.0
-        self._width = width
+        self._width = max(width, 0.0)
 
     @property
     def size(self):
@@ -102,21 +98,13 @@ class PlotStyle(object):
 
     @size.setter
     def size(self, size):
-        if size < 0.0:
-            size = 0.0
-        self._size = size
+        self._size = max(size, 0.0)
 
     def __str__(self):
-        return "%s c:%s a:%f ls:%s m:%s w:%f s:%f enabled:%s copy:%s" % (
-            self.name,
-            self.color,
-            self.alpha,
-            self.line_style,
-            self.marker,
-            self.width,
-            self.size,
-            self.isEnabled(),
-            self._is_copy,
+        return (
+            f"{self.name} c:{self.color} a:{self.alpha} "
+            f"ls:{self.line_style} m:{self.marker} w:{self.width} "
+            f"s:{self.size} enabled:{self.isEnabled()} copy:{self._is_copy}"
         )
 
     def __eq__(self, other):

@@ -116,14 +116,19 @@ class ModelConfigTest(ResTest):
                 ConfigKeys.NUM_REALIZATIONS: 10,
                 ConfigKeys.ENSPATH: "configuration_tests/Ensemble",
                 ConfigKeys.TIME_MAP: "configuration_tests/input/refcase/time_map.txt",
-                ConfigKeys.OBS_CONFIG: "configuration_tests/input/observations/observations.txt",
+                ConfigKeys.OBS_CONFIG: (
+                    "configuration_tests/input/observations/observations.txt"
+                ),
                 ConfigKeys.DATAROOT: "configuration_tests/",
                 ConfigKeys.HISTORY_SOURCE: HistorySourceEnum(1),
                 ConfigKeys.GEN_KW_EXPORT_NAME: "parameter_test.json",
                 ConfigKeys.FORWARD_MODEL: [
                     {
                         ConfigKeys.NAME: "COPY_FILE",
-                        ConfigKeys.ARGLIST: "<FROM>=input/schedule.sch, <TO>=output/schedule_copy.sch",
+                        ConfigKeys.ARGLIST: (
+                            "<FROM>=input/schedule.sch, "
+                            "<TO>=output/schedule_copy.sch"
+                        ),
                     },
                     {
                         ConfigKeys.NAME: "SNAKE_OIL_SIMULATOR",
@@ -154,12 +159,15 @@ class ModelConfigTest(ResTest):
             work_area.copy_directory(case_directory)
             with self.assertRaises(ValueError) as cm:
                 ResConfig(
-                    user_config_file="configuration_tests/sched_file_as_history_source.ert"
+                    user_config_file=(
+                        "configuration_tests/sched_file_as_history_source.ert"
+                    )
                 )
 
             # Any assert should per the unittest documentation be outside the
             # scope of the assertRaises with-block.
-            expected = "{} as {} is not supported".format(
-                str(HistorySourceEnum.SCHEDULE), ConfigKeys.HISTORY_SOURCE
+            expected = (
+                f"{HistorySourceEnum.SCHEDULE} as "
+                f"{ConfigKeys.HISTORY_SOURCE} is not supported"
             )
             self.assertIn(expected, str(cm.exception))

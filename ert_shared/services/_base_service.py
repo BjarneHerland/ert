@@ -41,7 +41,7 @@ def cleanup_service_files(signum, frame):
         file = Path(f"{service_name}_server.json")
         if file.exists():
             file.unlink()
-    raise OSError(f"Signal {signum} recieved.")
+    raise OSError(f"Signal {signum} received.")
 
 
 if threading.current_thread() is threading.main_thread():
@@ -112,7 +112,6 @@ class _Proc(threading.Thread):
         env = os.environ.copy()
         env["ERT_COMM_FD"] = str(fd_write)
 
-        global SERVICE_NAMES
         SERVICE_NAMES.add(self._service_name)
 
         self._childproc = Popen(
@@ -165,16 +164,17 @@ class _Proc(threading.Thread):
         for i in range(3):
             if (Path.cwd() / f"{self._service_name}_server.json").exists():
                 print(
-                    f"{self._service_name}_server.json is present on this location. Retry {i}"
+                    f"{self._service_name}_server.json is "
+                    f"present on this location. Retry {i}"
                 )
                 time.sleep(1)
 
         if (Path.cwd() / f"{self._service_name}_server.json").exists():
             print(
-                f"A file called {self._service_name}_server.json is present from this location. "
-                "This indicates there is already a ert instance running. If you are "
-                "certain that is not the case, try to delete the file and try "
-                "again."
+                f"A file called {self._service_name}_server.json is present from this "
+                "location. This indicates there is already a ert instance running. "
+                "If you are certain that is not the case, try to delete the file "
+                "and try again."
             )
             sys.exit(1)
 
@@ -209,7 +209,7 @@ class _Proc(threading.Thread):
                 self._childproc.wait(self._timeout)  # ... and wait again
             except TimeoutExpired:
                 self.logger.error(
-                    f"waiting for child-process exceeded timeout {timeout}s"
+                    f"waiting for child-process exceeded timeout {self._timeout}s"
                 )
 
     def _ensure_delete_conn_info(self) -> None:
@@ -348,7 +348,6 @@ class BaseService:
             self._proc.join()
 
     def set_conn_info(self, info: ConnInfo) -> None:
-        """ """
         if self._conn_info is not None:
             raise ValueError("Connection information already set")
         if info is None:

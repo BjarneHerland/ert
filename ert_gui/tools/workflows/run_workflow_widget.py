@@ -36,7 +36,7 @@ class RunWorkflowWidget(QWidget):
             sorted(ert.getWorkflowList().getWorkflowNames(), key=str.lower)
         )
 
-        layout.addWidget(QLabel("Select Workflow:"), 0, Qt.AlignVCenter)
+        layout.addWidget(QLabel("Select workflow:"), 0, Qt.AlignVCenter)
         layout.addWidget(self._workflow_combo, 0, Qt.AlignVCenter)
 
         # simulation_mode_layout.addStretch()
@@ -44,8 +44,8 @@ class RunWorkflowWidget(QWidget):
 
         self.run_button = QToolButton()
         self.run_button.setIconSize(QSize(32, 32))
-        self.run_button.setText("Start Workflow")
-        self.run_button.setIcon(resourceIcon("ide/gear_in_play"))
+        self.run_button.setText("Start workflow")
+        self.run_button.setIcon(resourceIcon("play_circle.svg"))
         self.run_button.clicked.connect(self.startWorkflow)
         self.run_button.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
 
@@ -68,7 +68,7 @@ class RunWorkflowWidget(QWidget):
         layout = QHBoxLayout()
 
         size = 64
-        spin_movie = resourceMovie("ide/loading.gif")
+        spin_movie = resourceMovie("loading.gif")
         spin_movie.setSpeed(60)
         spin_movie.setScaledSize(QSize(size, size))
         spin_movie.start()
@@ -80,7 +80,7 @@ class RunWorkflowWidget(QWidget):
         layout.addWidget(processing_animation)
 
         processing_label = QLabel(
-            "Processing workflow '%s'" % self.getCurrentWorkflowName()
+            f"Processing workflow '{self.getCurrentWorkflowName()}'"
         )
         layout.addWidget(processing_label, Qt.AlignBottom)
 
@@ -92,7 +92,7 @@ class RunWorkflowWidget(QWidget):
         if self._workflow_runner.isRunning():
             cancel = QMessageBox.question(
                 self,
-                "Confirm Cancel",
+                "Confirm cancel",
                 "Are you sure you want to cancel the running workflow?",
                 QMessageBox.Yes | QMessageBox.No,
             )
@@ -109,7 +109,7 @@ class RunWorkflowWidget(QWidget):
 
     def startWorkflow(self):
         self._running_workflow_dialog = WorkflowDialog(
-            "Running Workflow", self.createSpinWidget(), self
+            "Running workflow", self.createSpinWidget(), self
         )
         self._running_workflow_dialog.closeButtonPressed.connect(self.cancelWorkflow)
 
@@ -157,7 +157,7 @@ class RunWorkflowWidget(QWidget):
         QMessageBox.information(
             self,
             "Workflow completed!",
-            "The workflow '{}' completed {}".format(workflow_name, jobs_msg),
+            f"The workflow '{workflow_name}' completed {jobs_msg}",
         )
         self._running_workflow_dialog.accept()
         self._running_workflow_dialog = None
@@ -170,7 +170,7 @@ class RunWorkflowWidget(QWidget):
         QMessageBox.critical(
             self,
             "Workflow failed!",
-            "The workflow '%s' failed!\n\n%s" % (workflow_name, error),
+            f"The workflow '{workflow_name}' failed!\n\n{error}",
         )
         self._running_workflow_dialog.reject()
         self._running_workflow_dialog = None
@@ -180,7 +180,7 @@ class RunWorkflowWidget(QWidget):
         QMessageBox.information(
             self,
             "Workflow killed!",
-            "The workflow '%s' was killed successfully!" % workflow_name,
+            f"The workflow '{workflow_name}' was killed successfully!",
         )
         self._running_workflow_dialog.reject()
         self._running_workflow_dialog = None

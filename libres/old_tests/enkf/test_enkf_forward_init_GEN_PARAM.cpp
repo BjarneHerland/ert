@@ -15,13 +15,13 @@
    See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
    for more details.
 */
-#include <stdlib.h>
 #include <stdio.h>
+#include <stdlib.h>
 
+#include <ert/res_util/subst_list.hpp>
 #include <ert/util/rng.h>
 #include <ert/util/test_util.h>
 #include <ert/util/test_work_area.hpp>
-#include <ert/res_util/subst_list.hpp>
 
 #include <ert/enkf/enkf_main.hpp>
 
@@ -120,24 +120,20 @@ int main(int argc, char **argv) {
             }
 
             {
-                int error;
-                stringlist_type *msg_list = stringlist_alloc_new();
 
                 test_assert_true(enkf_node_forward_init(gen_param_node,
                                                         "simulations/run0", 0));
 
-                error = ensemble_config_forward_init(ens_config, run_arg);
-                test_assert_int_equal(0, error);
+                auto error = ensemble_config_forward_init(ens_config, run_arg);
+                test_assert_true(error == LOAD_SUCCESSFUL);
                 {
                     enkf_fs_type *fs = enkf_main_get_fs(enkf_main);
                     state_map_type *state_map = enkf_fs_get_state_map(fs);
                     state_map_iset(state_map, 0, STATE_INITIALIZED);
                 }
-                error = enkf_state_load_from_forward_model(state, run_arg,
-                                                           msg_list);
+                error = enkf_state_load_from_forward_model(state, run_arg);
 
-                stringlist_free(msg_list);
-                test_assert_int_equal(0, error);
+                test_assert_true(error == LOAD_SUCCESSFUL);
 
                 {
                     double value;

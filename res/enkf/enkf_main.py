@@ -14,22 +14,24 @@
 #  See the GNU General Public License at <http://www.gnu.org/licenses/gpl.html>
 #  for more details.
 
+from typing import List
+
 from cwrap import BaseCClass
-from ecl.util.util import RandomNumberGenerator
+from ecl.util.util import BoolVector, RandomNumberGenerator
 
 from res import ResPrototype
+from res._lib import enkf_main
 from res.enkf.analysis_config import AnalysisConfig
 from res.enkf.ecl_config import EclConfig
 from res.enkf.enkf_fs_manager import EnkfFsManager
 from res.enkf.enkf_obs import EnkfObs
 from res.enkf.enkf_simulation_runner import EnkfSimulationRunner
-from res.enkf.enkf_state import EnKFState
 from res.enkf.ensemble_config import EnsembleConfig
 from res.enkf.ert_workflow_list import ErtWorkflowList
 from res.enkf.es_update import ESUpdate
 from res.enkf.hook_manager import HookManager
 from res.enkf.key_manager import KeyManager
-from res.enkf.local_config import LocalConfig
+from res.analysis.configuration import UpdateConfiguration
 from res.enkf.model_config import ModelConfig
 from res.enkf.queue_config import QueueConfig
 from res.enkf.res_config import ResConfig
@@ -63,16 +65,18 @@ class EnKFMain(BaseCClass):
         else:
             return None
 
-    def __init__(self, config, strict=True, verbose=False):
+    def __init__(self, config, strict=True):
         """Initializes an instance of EnkfMain.
 
         Note: @config is a ResConfig instance holding the configuration.
         """
-
-        real_enkf_main = _RealEnKFMain(config, strict, verbose)
+        self.update_snapshots = {}
+        real_enkf_main = _RealEnKFMain(config, strict)
         assert isinstance(real_enkf_main, BaseCClass)
         self._init_from_real_enkf_main(real_enkf_main)
         self._monkey_patch_methods(real_enkf_main)
+
+        self._update_configuration = None
 
     def _init_from_real_enkf_main(self, real_enkf_main):
         super().__init__(
@@ -84,6 +88,35 @@ class EnKFMain(BaseCClass):
         self.__simulation_runner = EnkfSimulationRunner(self)
         self.__fs_manager = EnkfFsManager(self)
         self.__es_update = ESUpdate(self)
+
+    @property
+    def update_configuration(self):
+        if not self._update_configuration:
+            global_update_step = [
+                {
+                    "name": "ALL_ACTIVE",
+                    "observations": self._observation_keys,
+                    "parameters": self._parameter_keys,
+                }
+            ]
+            self._update_configuration = UpdateConfiguration(
+                update_steps=global_update_step
+            )
+        return self._update_configuration
+
+    @update_configuration.setter
+    def update_configuration(self, user_config: List):
+        config = UpdateConfiguration(update_steps=user_config)
+        config.context_validate(self._observation_keys, self._parameter_keys)
+        self._update_configuration = config
+
+    @property
+    def _observation_keys(self):
+        return enkf_main.get_observation_keys(self)
+
+    @property
+    def _parameter_keys(self):
+        return enkf_main.get_parameter_keys(self)
 
     def _real_enkf_main(self):
         return self.parent()
@@ -104,6 +137,10 @@ class EnKFMain(BaseCClass):
         if self.__fs_manager is not None:
             self.__fs_manager.umount()
             self.__fs_manager = None
+
+    def getLocalConfig(self) -> UpdateConfiguration:
+        """@rtype: UpdateConfiguration"""
+        return self.update_configuration
 
     # --- Overridden methods --------------------
 
@@ -164,7 +201,7 @@ class _RealEnKFMain(BaseCClass):
 
     """
 
-    _alloc = ResPrototype("void* enkf_main_alloc(res_config, bool)", bind=False)
+    _alloc = ResPrototype("void* enkf_main_alloc(res_config)", bind=False)
 
     _free = ResPrototype("void enkf_main_free(enkf_main)")
     _get_queue_config = ResPrototype(
@@ -177,9 +214,6 @@ class _RealEnKFMain(BaseCClass):
     _get_model_config = ResPrototype(
         "model_config_ref enkf_main_get_model_config( enkf_main )"
     )
-    _get_local_config = ResPrototype(
-        "local_config_ref enkf_main_get_local_config( enkf_main )"
-    )
     _get_analysis_config = ResPrototype(
         "analysis_config_ref enkf_main_get_analysis_config( enkf_main)"
     )
@@ -189,18 +223,10 @@ class _RealEnKFMain(BaseCClass):
     _get_ecl_config = ResPrototype(
         "ecl_config_ref enkf_main_get_ecl_config( enkf_main)"
     )
-    _get_schedule_prediction_file = ResPrototype(
-        "char* enkf_main_get_schedule_prediction_file( enkf_main )"
-    )
     _get_data_kw = ResPrototype("subst_list_ref enkf_main_get_data_kw(enkf_main)")
-    _clear_data_kw = ResPrototype("void enkf_main_clear_data_kw(enkf_main)")
     _add_data_kw = ResPrototype("void enkf_main_add_data_kw(enkf_main, char*, char*)")
-    _resize_ensemble = ResPrototype("void enkf_main_resize_ensemble(enkf_main, int)")
     _get_obs = ResPrototype("enkf_obs_ref enkf_main_get_obs(enkf_main)")
     _load_obs = ResPrototype("bool enkf_main_load_obs(enkf_main, char* , bool)")
-    _get_templates = ResPrototype(
-        "ert_templates_ref enkf_main_get_templates(enkf_main)"
-    )
     _get_site_config_file = ResPrototype(
         "char* enkf_main_get_site_config_file(enkf_main)"
     )
@@ -217,67 +243,48 @@ class _RealEnKFMain(BaseCClass):
         "int enkf_main_get_observation_count(enkf_main, char*)"
     )
     _have_observations = ResPrototype("bool enkf_main_have_obs(enkf_main)")
-    _iget_state = ResPrototype("enkf_state_ref enkf_main_iget_state(enkf_main, int)")
     _get_workflow_list = ResPrototype(
         "ert_workflow_list_ref enkf_main_get_workflow_list(enkf_main)"
     )
     _get_hook_manager = ResPrototype(
         "hook_manager_ref enkf_main_get_hook_manager(enkf_main)"
     )
-    _get_user_config_file = ResPrototype(
-        "char* enkf_main_get_user_config_file(enkf_main)"
-    )
     _get_mount_point = ResPrototype("char* enkf_main_get_mount_root( enkf_main )")
-    _export_field_with_fs = ResPrototype(
-        "bool enkf_main_export_field_with_fs(enkf_main, \
-                                             char*, \
-                                             char*, \
-                                             bool_vector, \
-                                             enkf_field_file_format_enum, \
-                                             int, \
-                                             enkf_fs_manager)"
-    )
     _load_from_forward_model = ResPrototype(
-        "int enkf_main_load_from_forward_model_from_gui(enkf_main, int, bool_vector, enkf_fs)"
+        "int enkf_main_load_from_forward_model_with_fs"
+        "(enkf_main, int, bool_vector, enkf_fs)"
     )
     _load_from_run_context = ResPrototype(
-        "int enkf_main_load_from_run_context_from_gui(enkf_main, ert_run_context, enkf_fs)"
-    )
-    _create_run_path = ResPrototype(
-        "void enkf_main_create_run_path(enkf_main , ert_run_context)"
+        "int enkf_main_load_from_run_context(enkf_main, ert_run_context, enkf_fs)"
     )
     _alloc_run_context_ENSEMBLE_EXPERIMENT = ResPrototype(
         "ert_run_context_obj enkf_main_alloc_ert_run_context_ENSEMBLE_EXPERIMENT(enkf_main , \
                                                                                  enkf_fs , \
                                                                                  bool_vector , \
-                                                                                 int)"
+                                                                                 int)"  # noqa
     )
     _get_runpath_list = ResPrototype(
         "runpath_list_ref enkf_main_get_runpath_list(enkf_main)"
     )
-    _create_runpath_list = ResPrototype(
-        "runpath_list_obj enkf_main_alloc_runpath_list(enkf_main)"
-    )
-    _add_node = ResPrototype("void enkf_main_add_node(enkf_main, enkf_config_node)")
     _get_res_config = ResPrototype("res_config_ref enkf_main_get_res_config(enkf_main)")
     _init_run = ResPrototype("void enkf_main_init_run(enkf_main, ert_run_context)")
     _get_shared_rng = ResPrototype("rng_ref enkf_main_get_shared_rng(enkf_main)")
 
-    def __init__(self, config, strict=True, verbose=False):
+    def __init__(self, config, strict=True):
         """Please don't use this class directly. See EnKFMain instead"""
-
+        self.config_file = config
         res_config = self._init_res_config(config)
         if res_config is None:
             raise TypeError(
                 "Failed to construct EnKFMain instance due to invalid res_config."
             )
 
-        c_ptr = self._alloc(res_config, verbose)
+        c_ptr = self._alloc(res_config)
         if c_ptr:
             super().__init__(c_ptr)
         else:
             raise ValueError(
-                "Failed to construct EnKFMain instance from config %s." % res_config
+                f"Failed to construct EnKFMain instance from config {res_config}."
             )
 
         self.__key_manager = KeyManager(self)
@@ -294,36 +301,22 @@ class _RealEnKFMain(BaseCClass):
             config.convertToCReference(self)
             return config
 
-        raise TypeError("Expected ResConfig, received: %r" % config)
+        raise TypeError(f"Expected ResConfig, received: {repr(config)}")
 
     def get_queue_config(self) -> QueueConfig:
         return self._get_queue_config()
-
-    def getRealisation(self, iens) -> EnKFState:
-        """@rtype: EnKFState"""
-        if 0 <= iens < self.getEnsembleSize():
-            return self._iget_state(iens).setParent(self)
-        else:
-            raise IndexError(
-                "iens value:%d invalid Valid range: [0,%d)"
-                % (iens, self.getEnsembleSize())
-            )
 
     def free(self):
         self._free()
 
     def __repr__(self):
         ens = self.getEnsembleSize()
-        cfg = self.getUserConfigFile()
-        cnt = "ensemble_size = %d, config_file = %s" % (ens, cfg)
+        cnt = f"ensemble_size = {ens}, config_file = {self.config_file}"
         return self._create_repr(cnt)
 
     def getEnsembleSize(self) -> int:
         """@rtype: int"""
         return self._get_ensemble_size()
-
-    def resizeEnsemble(self, value):
-        self._resize_ensemble(value)
 
     def ensembleConfig(self) -> EnsembleConfig:
         """@rtype: EnsembleConfig"""
@@ -337,12 +330,6 @@ class _RealEnKFMain(BaseCClass):
         """@rtype: ModelConfig"""
         return self._get_model_config().setParent(self)
 
-    def getLocalConfig(self) -> LocalConfig:
-        """@rtype: LocalConfig"""
-        config = self._get_local_config().setParent(self)
-        config.initAttributes(self.ensembleConfig(), self.eclConfig().getGrid())
-        return config
-
     def siteConfig(self) -> SiteConfig:
         """@rtype: SiteConfig"""
         return self._get_site_config().setParent(self)
@@ -354,16 +341,9 @@ class _RealEnKFMain(BaseCClass):
         """@rtype: EclConfig"""
         return self._get_ecl_config().setParent(self)
 
-    def get_schedule_prediction_file(self):
-        schedule_prediction_file = self._get_schedule_prediction_file()
-        return schedule_prediction_file
-
     def getDataKW(self) -> SubstitutionList:
         """@rtype: SubstitutionList"""
         return self._get_data_kw()
-
-    def clearDataKW(self):
-        self._clear_data_kw()
 
     def addDataKW(self, key, value):
         self._add_data_kw(key, value)
@@ -381,23 +361,11 @@ class _RealEnKFMain(BaseCClass):
     def loadObservations(self, obs_config_file, clear=True):
         return self._load_obs(obs_config_file, clear)
 
-    def get_templates(self):
-        return self._get_templates().setParent(self)
-
     def get_site_config_file(self):
         return self._get_site_config_file()
 
-    def getUserConfigFile(self):
-        """@rtype: str"""
-        config_file = self._get_user_config_file()
-        return config_file
-
     def getHistoryLength(self):
         return self._get_history_length()
-
-    def getMemberRunningState(self, ensemble_member):
-        """@rtype: EnKFState"""
-        return self._iget_state(ensemble_member).setParent(self)
 
     def get_observations(self, user_key, obs_count, obs_x, obs_y, obs_std):
         return self._get_observations(user_key, obs_count, obs_x, obs_y, obs_std)
@@ -417,26 +385,15 @@ class _RealEnKFMain(BaseCClass):
         """@rtype: HookManager"""
         return self._get_hook_manager()
 
-    def exportField(
-        self, keyword, path, iactive, file_type, report_step, state, enkfFs
-    ):
-        """
-        @type keyword: str
-        @type path: str
-        @type iactive: BoolVector
-        @type file_type: EnkfFieldFileFormatEnum
-        @type report_step: int
-        @type enkfFs: EnkfFs
-
-        """
-        assert isinstance(keyword, str)
-        return self._export_field_with_fs(
-            keyword, path, iactive, file_type, report_step, state, enkfFs
-        )
-
-    def loadFromForwardModel(self, realization, iteration, fs):
+    def loadFromForwardModel(self, realization: List[bool], iteration: int, fs):
         """Returns the number of loaded realizations"""
-        return self._load_from_forward_model(iteration, realization, fs)
+        true_indices = [idx for idx, value in enumerate(realization) if value]
+        bool_vector = BoolVector.createFromList(
+            size=len(realization), source_list=true_indices
+        )
+        nr_loaded = self._load_from_forward_model(iteration, bool_vector, fs)
+        fs.sync()
+        return nr_loaded
 
     def loadFromRunContext(self, run_context, fs):
         """Returns the number of loaded realizations"""
@@ -445,20 +402,17 @@ class _RealEnKFMain(BaseCClass):
     def initRun(self, run_context):
         self._init_run(run_context)
 
-    def createRunpath(self, run_context):
-        self._create_run_path(run_context)
-
-    def getRunContextENSEMPLE_EXPERIMENT(self, fs, iactive, iteration=0):
-        return self._alloc_run_context_ENSEMBLE_EXPERIMENT(fs, iactive, iteration)
-
-    def create_runpath_list(self):
-        return self._create_runpath_list()
+    def getRunContextENSEMPLE_EXPERIMENT(
+        self, fs, iactive: List[bool], iteration: int = 0
+    ):
+        true_indices = [idx for idx, value in enumerate(iactive) if value]
+        bool_vector = BoolVector.createFromList(
+            size=len(iactive), source_list=true_indices
+        )
+        return self._alloc_run_context_ENSEMBLE_EXPERIMENT(fs, bool_vector, iteration)
 
     def getRunpathList(self):
         return self._get_runpath_list()
-
-    def addNode(self, enkf_config_node):
-        self._add_node(enkf_config_node)
 
     def rng(self) -> RandomNumberGenerator:
         "Will return the random number generator used for updates."
